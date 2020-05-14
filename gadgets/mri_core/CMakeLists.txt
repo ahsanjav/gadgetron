@@ -71,7 +71,8 @@ set(gadgetron_mricore_header_files GadgetMRIHeaders.h
         ImageArraySendMixin.h
         ImageArraySendMixin.hpp
         DenoiseGadget.h
-        CoilComputationGadget.h)
+        CoilComputationGadget.h
+        AcquisitionSpiralAccumulateWaveform.h)
 
 set(gadgetron_mricore_src_files
         AcquisitionPassthroughGadget.cpp
@@ -134,7 +135,8 @@ set(gadgetron_mricore_src_files
         ImageResizingGadget.cpp
         AutoScaleGadget.cpp
         DenoiseGadget.cpp
-        CoilComputationGadget.cpp)
+        CoilComputationGadget.cpp
+        AcquisitionSpiralAccumulateWaveform.cpp)
 
 set(gadgetron_mricore_config_files
         config/default.xml

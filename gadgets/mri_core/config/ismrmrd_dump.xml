@@ -17,7 +17,7 @@
     <dll>gadgetron_mricore</dll>
     <classname>IsmrmrdDumpGadget</classname>
     <property><name>file_prefix</name><value></value></property>
-    <property><name>folder</name><value></value></property>
+    <property><name>folder</name><value>/home/javeda2/tmp_gadgetron/</value></property>
     <property><name>save_xml_header_only</name><value>false</value></property>
   </gadget>
 
