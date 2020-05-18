@@ -156,13 +156,6 @@ else ()
         endif ()
     endif ()
 
-
-    check_cxx_compiler_flag(-std=c++${CXX_STANDARD} COMPILER_SUPPORTS_stdcxx${CXX_STANDARD})
-    if (COMPILER_SUPPORTS_stdcxx${CXX_STANDARD})
-        set(CXX_STANDARD_FOUND 1)
-        message(STATUS "Compiling using C++${CXX_STANDARD} standard")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CXX_STANDARD}")
-    endif ()
     check_cxx_compiler_flag(-Werror=return-type COMPILER_SUPPORTS_WRETURNTYPE)
     if (COMPILER_SUPPORTS_WRETURNTYPE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type")
@@ -291,6 +284,8 @@ if (USE_MKL)
     set_property(TARGET BLAS PROPERTY INTERFACE_LINK_LIBRARIES ${MKL_LIBRARIES})
 
 
+    string(REPLACE ";" ":" MKL_COMPILER_LIB_DIR_NO_SEMICOLON "${MKL_COMPILER_LIB_DIR}")
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${MKL_LIB_DIR}:${MKL_COMPILER_LIB_DIR_NO_SEMICOLON}")
     add_definitions(-DUSE_MKL)
     set(GADGETRON_BUILD_RPATH "${MKL_LIB_DIR};${MKL_COMPILER_LIB_DIR}")
 else ()
@@ -428,7 +423,7 @@ configure_package_config_file(
         ${CMAKE_SOURCE_DIR}/cmake/gadgetron-config.cmake.in
         ${CMAKE_BINARY_DIR}/cmake/gadgetron-config.cmake
         INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gadgetron
-        PATH_VARS GADGETRON_INSTALL_CONFIG_PATH GADGETRON_INSTALL_SCHEMA_PATH GADGETRON_SOVERSION GADGETRON_VERSION_STRING
+        PATH_VARS GADGETRON_INSTALL_PYTHON_MODULE_PATH GADGETRON_INSTALL_CONFIG_PATH GADGETRON_INSTALL_SCHEMA_PATH
 )
 
 write_basic_package_version_file(
