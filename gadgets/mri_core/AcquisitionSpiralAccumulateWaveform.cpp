@@ -1,162 +1,18 @@
-#include "AcquisitionAccumulateTriggerGadget.h"
+#include "AcquisitionSpiralAccumulateWaveform.h"
 #include "log.h"
 #include "mri_core_data.h"
 #include <boost/algorithm/string.hpp>
 
 namespace Gadgetron {
-    using TriggerDimension = AcquisitionAccumulateTriggerGadget::TriggerDimension;
     namespace {
-        bool is_noise(Core::Acquisition& acq) {
-            return std::get<ISMRMRD::AcquisitionHeader>(acq).isFlagSet(ISMRMRD::ISMRMRD_ACQ_IS_NOISE_MEASUREMENT);
-        }
-
-        unsigned short get_index(const ISMRMRD::AcquisitionHeader& header, TriggerDimension index) {
-            switch (index) {
-            case TriggerDimension::kspace_encode_step_1: return header.idx.kspace_encode_step_1;
-            case TriggerDimension::kspace_encode_step_2: return header.idx.kspace_encode_step_2;
-            case TriggerDimension::average: return header.idx.average;
-            case TriggerDimension::slice: return header.idx.slice;
-            case TriggerDimension::contrast: return header.idx.contrast;
-            case TriggerDimension::phase: return header.idx.phase;
-            case TriggerDimension::repetition: return header.idx.repetition;
-            case TriggerDimension::set: return header.idx.set;
-            case TriggerDimension::segment: return header.idx.segment;
-            case TriggerDimension::user_0: return header.idx.user[0];
-            case TriggerDimension::user_1: return header.idx.user[1];
-            case TriggerDimension::user_2: return header.idx.user[2];
-            case TriggerDimension::user_3: return header.idx.user[3];
-            case TriggerDimension::user_4: return header.idx.user[4];
-            case TriggerDimension::user_5: return header.idx.user[5];
-            case TriggerDimension::user_6: return header.idx.user[6];
-            case TriggerDimension::user_7: return header.idx.user[7];
-            case TriggerDimension::n_acquisitions: return 0;
-            case TriggerDimension::none: return 0;
+            bool is_noise(Core::Acquisition& acq) {
+                return std::get<ISMRMRD::AcquisitionHeader>(acq).isFlagSet(ISMRMRD::ISMRMRD_ACQ_IS_NOISE_MEASUREMENT);
             }
-            throw std::runtime_error("Illegal enum");
-        }
-
-        void add_stats(AcquisitionBucketStats& stats, const ISMRMRD::AcquisitionHeader& header) {
-            stats.average.insert(header.idx.average);
-            stats.kspace_encode_step_1.insert(header.idx.kspace_encode_step_1);
-            stats.kspace_encode_step_2.insert(header.idx.kspace_encode_step_2);
-            stats.slice.insert(header.idx.slice);
-            stats.contrast.insert(header.idx.contrast);
-            stats.phase.insert(header.idx.phase);
-            stats.repetition.insert(header.idx.repetition);
-            stats.set.insert(header.idx.set);
-            stats.segment.insert(header.idx.segment);
-        }
-
-        void add_acquisition(AcquisitionBucket& bucket, Core::Acquisition acq) {
-            auto& head  = std::get<ISMRMRD::AcquisitionHeader>(acq);
-            auto espace = head.encoding_space_ref;
-
-            if (ISMRMRD::FlagBit(ISMRMRD::ISMRMRD_ACQ_IS_PARALLEL_CALIBRATION).isSet(head.flags)
-                || ISMRMRD::FlagBit(ISMRMRD::ISMRMRD_ACQ_IS_PARALLEL_CALIBRATION_AND_IMAGING).isSet(head.flags)) {
-                bucket.ref_.push_back(acq);
-                if (bucket.refstats_.size() < (espace + 1)) {
-                    bucket.refstats_.resize(espace + 1);
-                }
-                add_stats(bucket.refstats_[espace], head);
-            }
-            if (!(ISMRMRD::FlagBit(ISMRMRD::ISMRMRD_ACQ_IS_PARALLEL_CALIBRATION).isSet(head.flags)
-                    || ISMRMRD::FlagBit(ISMRMRD::ISMRMRD_ACQ_IS_PHASECORR_DATA).isSet(head.flags))) {
-                if (bucket.datastats_.size() < (espace + 1)) {
-                    bucket.datastats_.resize(espace + 1);
-                }
-                add_stats(bucket.datastats_[espace], head);
-                bucket.data_.emplace_back(std::move(acq));
-            }
-        }
-
-        struct EqualityTrigger {
-            explicit EqualityTrigger(TriggerDimension trig) : trigger{ trig } {}
-            const TriggerDimension trigger;
-            Core::optional<unsigned short> previous_trigger;
-            bool trigger_before(const ISMRMRD::AcquisitionHeader& head) {
-                auto acq_index   = get_index(head, trigger);
-                auto result      = (previous_trigger != acq_index && previous_trigger != Core::none);
-                previous_trigger = acq_index;
-                return result;
-            }
-
-            static bool trigger_after(const ISMRMRD::AcquisitionHeader& head) {
-                return false;
-            }
-        };
-        struct NumAcquisitionsTrigger {
-            explicit NumAcquisitionsTrigger(size_t target_acquisitions_first, size_t target_acquisitions) : target_acquisitions_first{target_acquisitions_first},target_acquisitions{ target_acquisitions } {}
-            const size_t target_acquisitions_first;
-            const size_t target_acquisitions;
-            size_t num_acquisitions = 0;
-            bool first = true;
-
-            static bool trigger_before(const ISMRMRD::AcquisitionHeader& head) {
-                return false;
-            }
-            bool trigger_after(const ISMRMRD::AcquisitionHeader& head) {
-                // Handle possible n_acq trigger _after_ pushing data - all others come before
-                size_t current_target_acquisitions = first ? target_acquisitions_first : target_acquisitions;
-                bool result = ++num_acquisitions >= current_target_acquisitions;
-                if (result)
-                {
-                    first = false;
-                    num_acquisitions = 0;
-                }
-                return result;
-            }
-        };
-        struct NoneTrigger {
-            static bool trigger_before(const ISMRMRD::AcquisitionHeader& head) {
-                return false;
-            }
-            static bool trigger_after(const ISMRMRD::AcquisitionHeader& head) {
-                return false;
-            }
-        };
-
-        using Trigger = Core::variant<EqualityTrigger, NumAcquisitionsTrigger, NoneTrigger>;
-
-        Trigger get_trigger(const AcquisitionAccumulateTriggerGadget& gadget) {
-            switch (gadget.trigger_dimension) {
-
-            case TriggerDimension::kspace_encode_step_1:
-            case TriggerDimension::kspace_encode_step_2:
-            case TriggerDimension::average:
-            case TriggerDimension::slice:
-            case TriggerDimension::contrast:
-            case TriggerDimension::phase:
-            case TriggerDimension::repetition:
-            case TriggerDimension::set:
-            case TriggerDimension::segment:
-            case TriggerDimension::user_0:
-            case TriggerDimension::user_1:
-            case TriggerDimension::user_2:
-            case TriggerDimension::user_3:
-            case TriggerDimension::user_4:
-            case TriggerDimension::user_5:
-            case TriggerDimension::user_6:
-            case TriggerDimension::user_7: return EqualityTrigger(gadget.trigger_dimension);
-            case TriggerDimension::n_acquisitions: return NumAcquisitionsTrigger(gadget.n_acquisitions_before_trigger,gadget.n_acquisitions_before_ongoing_trigger);
-            case TriggerDimension::none: return NoneTrigger();
-            default: throw std::runtime_error("ENUM TriggerDimension is in an invalid state.");
-            }
-        }
-
-        bool trigger_before(Trigger& trigger, const ISMRMRD::AcquisitionHeader& head) {
-            return Core::visit([&](auto& var) { return var.trigger_before(head); }, trigger);
-        }
-        bool trigger_after(Trigger& trigger, const ISMRMRD::AcquisitionHeader& acq) {
-            return Core::visit([&](auto& var) { return var.trigger_after(acq); }, trigger);
-        }
-
-
     }
-
-    void AcquisitionAccumulateTriggerGadget::send_data(Core::OutputChannel& out, std::map<unsigned short, AcquisitionBucket>& buckets,
+    void AcquisitionSpiralAccumulateWaveform::send_data(Core::OutputChannel& out, std::map<unsigned short, AcquisitionBucket>& buckets,
                                                        std::vector<Core::Waveform>& waveforms) {
-        trigger_events++;
-        GDEBUG("Trigger (%d) occurred, sending out %d buckets\n", trigger_events, buckets.size());
+        //trigger_events++;
+        //GDEBUG("Trigger (%d) occurred, sending out %d buckets\n", trigger_events, buckets.size());
         buckets.begin()->second.waveform_ = std::move(waveforms);
         // Pass all buckets down the chain
         for (auto& bucket : buckets)
@@ -164,60 +20,75 @@ namespace Gadgetron {
 
         buckets.clear();
     }
-    void AcquisitionAccumulateTriggerGadget ::process(
+    void AcquisitionSpiralAccumulateWaveform ::process(
         Core::InputChannel<Core::variant<Core::Acquisition, Core::Waveform>>& in, Core::OutputChannel& out) {
 
         auto waveforms = std::vector<Core::Waveform>{};
+        auto grad_waveforms = std::vector<Core::Waveform>{};
         auto buckets   = std::map<unsigned short, AcquisitionBucket>{};
-        auto trigger   = get_trigger(*this);
-
+       // auto trigger   = get_trigger(*this);
+        int counterData;
         for (auto message : in) {
             if (Core::holds_alternative<Core::Waveform>(message)) {
-                waveforms.emplace_back(std::move(Core::get<Core::Waveform>(message)));
+                auto& temp_waveform = Core::get<Core::Waveform>(message);
+                auto whead = std::get<ISMRMRD::WaveformHeader>(Core::get<Core::Waveform>(message));
+                
+                if(whead.waveform_id<10)
+                  waveforms.emplace_back(std::move(Core::get<Core::Waveform>(message)));
+                else
+                  grad_waveforms.emplace_back(std::move(Core::get<Core::Waveform>(message)));
+                
                 continue;
             }
-
+          if(~Core::holds_alternative<Core::Waveform>(message))
+          {
             auto& acq = Core::get<Core::Acquisition>(message);
-            if (is_noise(acq))
-                continue;
-            auto head = std::get<ISMRMRD::AcquisitionHeader>(acq);
+           if (is_noise(acq))
+               continue;
+            auto& head = std::get<ISMRMRD::AcquisitionHeader>(acq);
+            auto data = std::get<hoNDArray<std::complex<float>>>(acq);
 
-            if (trigger_before(trigger, head))
-                send_data(out, buckets, waveforms);
+            // Prepare Trajectory for each acq and push the bucked through 
+             head.trajectory_dimensions=3; 
+            hoNDArray<float> *trajectory_and_weights = new hoNDArray<float>(head.trajectory_dimensions,head.number_of_samples);
+           
+
+            //auto traj = std::get<hoNDArray<uint32_t>>(acq);
+            //GadgetContainerMessage<hoNDArray<float> > *cont = new GadgetContainerMessage<hoNDArray<float> >();
+            Core::Acquisition acq2 = Core::Acquisition(std::move(head),std::move(data),std::move(trajectory_and_weights));
+               
+            
+      //      acq = t(std::move(head),std::move(data),std::move(traj));
+          //  *(&acq)->_M_head
+                  
+            counterData++;
+         //   head.idx.kspace_encode_step_1;
+          }
+
+    //        if (trigger_before(trigger, head))
+     //           send_data(out, buckets, waveforms);
             // It is enough to put the first one, since they are linked
-            unsigned short sorting_index = get_index(head, sorting_dimension);
+     //       unsigned short sorting_index = get_index(head, sorting_dimension);
 
-            AcquisitionBucket& bucket = buckets[sorting_index];
-            add_acquisition(bucket, std::move(acq));
+    //        AcquisitionBucket& bucket = buckets[sorting_index];
+      //      add_acquisition(bucket, std::move(acq));
 
-            if (trigger_after(trigger, head))
-                send_data(out, buckets, waveforms);
-        }
-        send_data(out,buckets,waveforms);
+        //    if (trigger_after(trigger, head))
+          //      send_data(out, buckets, waveforms);
+        //}
+        
     }
-    GADGETRON_GADGET_EXPORT(AcquisitionAccumulateTriggerGadget);
-
-    namespace {
-        const std::map<std::string, TriggerDimension> triggerdimension_from_name = {
-
-            { "kspace_encode_step_1", TriggerDimension::kspace_encode_step_1 },
-            { "kspace_encode_step_2", TriggerDimension::kspace_encode_step_2 },
-            { "average", TriggerDimension::average }, { "slice", TriggerDimension::slice },
-            { "contrast", TriggerDimension::contrast }, { "phase", TriggerDimension::phase },
-            { "repetition", TriggerDimension::repetition }, { "set", TriggerDimension::set },
-            { "segment", TriggerDimension::segment }, { "user_0", TriggerDimension::user_0 },
-            { "user_1", TriggerDimension::user_1 }, { "user_2", TriggerDimension::user_2 },
-            { "user_3", TriggerDimension::user_3 }, { "user_4", TriggerDimension::user_4 },
-            { "user_5", TriggerDimension::user_5 }, { "user_6", TriggerDimension::user_6 },
-            { "user_7", TriggerDimension::user_7 }, { "n_acquisitions", TriggerDimension::n_acquisitions },
-            { "none", TriggerDimension::none }, { "", TriggerDimension::none }
-        };
-    }
-
-    void from_string(const std::string& str, TriggerDimension& trigger) {
-        auto lower = str;
-        boost::to_lower(lower);
-        trigger = triggerdimension_from_name.at(lower);
-    }
+      send_data(out,buckets,waveforms);
+  }
+  void AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform){
+    
+    //auto& wave_head = std::get<ISMRMRD::WaveformHeader>(grad_waveform);
+    //auto& wave_data = std::get<hoNDArray<uint32_t>>(grad_waveform);    
+    auto& [wave_head,wave_data] = grad_waveform;
+    hoNDArray<u_int32_t> wav = hoNDArray<float>(wave_data);
+    
+    //wav = wave_data.get_data_ptr();
+  }
+    GADGETRON_GADGET_EXPORT(AcquisitionSpiralAccumulateWaveform);
 
 }

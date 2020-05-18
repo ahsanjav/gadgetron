@@ -18,7 +18,7 @@ namespace Gadgetron {
 
     class EXPORTGADGETS_SPIRAL SpiralToGenericGadget :
             public Gadget2<ISMRMRD::AcquisitionHeader, hoNDArray<std::complex<float> > > {
-
+            
     public:
         GADGET_DECLARE(SpiralToGenericGadget);
 
@@ -32,6 +32,7 @@ namespace Gadgetron {
 
         virtual int process(GadgetContainerMessage<ISMRMRD::AcquisitionHeader> *m1,
                             GadgetContainerMessage<hoNDArray<std::complex<float> > > *m2);
+                            
 
     private:
 

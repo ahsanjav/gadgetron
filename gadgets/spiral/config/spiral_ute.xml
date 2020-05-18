@@ -26,20 +26,21 @@
     <property><name>coils_out</name><value>12</value></property>
   </gadget>
 
-    <!-- Calculate spiral trajectory and attach -->
+    <!-- Calculate spiral trajectory and attach 
     <gadget>
         <name>SpiralToGeneric</name>
         <dll>gadgetron_spiral</dll>
         <classname>SpiralToGenericGadget</classname>
-    </gadget>
+    </gadget> -->
     
     <!-- Data accumulation and trigger gadget -->
     <gadget>
         <name>AccTrig</name>
         <dll>gadgetron_mricore</dll>
-        <classname>AcquisitionAccumulateTriggerGadget</classname>
+       <!-- <classname>AcquisitionAccumulateTriggerGadget</classname>
         <property><name>trigger_dimension</name><value>repetition</value></property>
-        <property><name>sorting_dimension</name><value></value></property>
+        <property><name>sorting_dimension</name><value></value></property> -->
+        <classname>AcquisitionSpiralAccumulateWaveform</classname>
     </gadget>
 
     <gadget>

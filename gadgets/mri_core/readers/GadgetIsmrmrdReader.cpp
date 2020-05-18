@@ -131,7 +131,7 @@ namespace Gadgetron {
     Core::Message GadgetIsmrmrdWaveformMessageReader::read(std::istream &stream) {
         using namespace Core;
         using namespace std::literals;
-
+        
         auto header = IO::read<ISMRMRD::WaveformHeader>(stream);
         auto data = hoNDArray<uint32_t>(header.number_of_samples, header.channels);
 
