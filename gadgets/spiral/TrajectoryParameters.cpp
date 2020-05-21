@@ -57,12 +57,16 @@ namespace Gadgetron {
                 auto userparam_long = to_map(traj_desc.userParameterLong);
                 auto userparam_double = to_map(traj_desc.userParameterDouble);
                 Tsamp_ns_ = userparam_long.at("SamplingTime_ns");
+                if(Tsamp_ns_==0)
+                    Tsamp_ns_=2000; // Added for UTE sequence etc debugging
                 Nints_ = userparam_long.at("interleaves");
 
                 gmax_ = userparam_double.at("MaxGradient_G_per_cm");
                 smax_ = userparam_double.at("MaxSlewRate_G_per_cm_per_s");
                 krmax_ = userparam_double.at("krmax_per_cm");
                 fov_ = userparam_double.at("FOVCoeff_1_cm");
+                if(fov_==0)
+                    fov_=450; //Really bad again debuggin UTE
             } catch (std::out_of_range exception) {
                 std::string s = "Missing user parameters: " + std::string(exception.what());
                 throw std::runtime_error(s);
