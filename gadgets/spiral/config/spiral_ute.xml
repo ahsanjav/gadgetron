@@ -35,13 +35,12 @@
     
     <!-- Data accumulation and trigger gadget -->
     <gadget>
-        <name>AccTrig</name>
+        <name>AcquisitionSpiralAccumulateWaveform</name>
         <dll>gadgetron_mricore</dll>
        <!-- <classname>AcquisitionAccumulateTriggerGadget</classname>
         <property><name>trigger_dimension</name><value>repetition</value></property>
         <property><name>sorting_dimension</name><value></value></property> -->
         <classname>AcquisitionSpiralAccumulateWaveform</classname>
-        <property><name>verbose</name><value>true</value></property>
     </gadget>
 
     <gadget>

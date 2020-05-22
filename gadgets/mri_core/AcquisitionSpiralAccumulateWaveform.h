@@ -2,13 +2,13 @@
 
 #include "Node.h"
 #include "hoNDArray.h"
-
+#include "mri_core_acquisition_bucket.h"
 #include <complex>
 #include <ismrmrd/ismrmrd.h>
-#include <map>
-#include <armadillo>
 #include <ismrmrd/xml.h>
 #include "gadgetron_mricore_export.h"
+#include "mri_core_data.h"
+
 
 namespace Gadgetron {
 
@@ -16,19 +16,14 @@ namespace Gadgetron {
         : public Core::ChannelGadget<Core::variant<Core::Acquisition, Core::Waveform>> {
     public:
         using Core::ChannelGadget<Core::variant<Core::Acquisition, Core::Waveform>>::ChannelGadget;
-
-   //     virtual int process_config(const ISMRMRD::IsmrmrdHeader &header);
         AcquisitionSpiralAccumulateWaveform(const Core::Context& context, const Core::GadgetProperties& props); 
         
     protected:
             ISMRMRD::IsmrmrdHeader header;
             void process(Core::InputChannel<Core::variant<Core::Acquisition, Core::Waveform>>& in,
-            Core::OutputChannel& out) override;
-            
-    private:
-        
+            Core::OutputChannel& out) override;        
         int curr_avg=0;
-        float kspace_scaling;
+        float kspace_scaling=0.023;
         hoNDArray<float> prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform_x, const Core::Waveform &grad_waveform_y,
                                                            const ISMRMRD::AcquisitionHeader &head);
         void calculateWeights();
@@ -39,7 +34,6 @@ namespace Gadgetron {
         hoNDArray<float> calculate_weights_Hoge(const hoNDArray<float> &gradients, const hoNDArray<float> &trajectories);                    
     };
     
-    void from_string(const std::string&);
 
 }
 

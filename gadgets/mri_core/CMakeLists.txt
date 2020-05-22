@@ -9,6 +9,7 @@ find_package(ZFP)
 include_directories(${HDF5_INCLUDE_DIR})
 
 set(gadgetron_mricore_header_files GadgetMRIHeaders.h
+        AcquisitionSpiralAccumulateWaveform.h
         NoiseAdjustGadget.h
         PCACoilGadget.h
         RateLimitGadget.h
@@ -71,10 +72,10 @@ set(gadgetron_mricore_header_files GadgetMRIHeaders.h
         ImageArraySendMixin.h
         ImageArraySendMixin.hpp
         DenoiseGadget.h
-        CoilComputationGadget.h
-        AcquisitionSpiralAccumulateWaveform.h)
+        CoilComputationGadget.h)
 
 set(gadgetron_mricore_src_files
+        AcquisitionSpiralAccumulateWaveform.cpp
         AcquisitionPassthroughGadget.cpp
         NoiseAdjustGadget.cpp
         PCACoilGadget.cpp
@@ -135,8 +136,7 @@ set(gadgetron_mricore_src_files
         ImageResizingGadget.cpp
         AutoScaleGadget.cpp
         DenoiseGadget.cpp
-        CoilComputationGadget.cpp
-        AcquisitionSpiralAccumulateWaveform.cpp)
+        CoilComputationGadget.cpp)
 
 set(gadgetron_mricore_config_files
         config/default.xml

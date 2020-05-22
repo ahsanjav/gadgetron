@@ -1,17 +1,14 @@
 #include "AcquisitionSpiralAccumulateWaveform.h"
+
 #include "log.h"
 #include "mri_core_data.h"
-#include <boost/algorithm/string.hpp>
 #include "hoNDArray_utils.h"
 #include "hoNDArray_math.h"
 #include "hoNDFFT.h"
 #include <math.h>
 #include <stdio.h>
-#include <boost/math/constants/constants.hpp>
-#include "vector_td_utilities.h"
-#include <boost/range/combine.hpp>
-#include <boost/range/algorithm.hpp>
 #include "hoNDArray_math.h"
+#include "ismrmrd/xml.h"
 
 constexpr double GAMMA = 4258.0;        /* Hz/G */
 constexpr double PI = boost::math::constants::pi<double>();
@@ -261,16 +258,18 @@ if(axisx==axisy)
     trajectory_and_weights(1,ii) = (real(gradients_interpolated(1,ii)) + trajectory_and_weights(1,ii - 1))*GAMMA*10*2/1000000*kspace_scaling; // mT/m * Hz/G * 10G * 2e-6
   }
 
-  // float maxTx;
-  // float minTx;
-  // auto temp=permute(trajectory_and_weights,{1,0});
-  // maxValue(hoNDArray<float>(temp(slice,0)), maxTx);
-  // minValue(hoNDArray<float>(temp(slice,0)), minTx);
+	//auto x = 0.023;
+	//trajectory_and_weights=Gadgetron::transform(trajectory_and_weights, [x](const float v){return v*x;}); // scale trajectories -1/2-1/2
+   float maxTx;
+   float minTx;
+   auto temp=permute(trajectory_and_weights,{1,0});
+   maxValue(hoNDArray<float>(temp(slice,0)), maxTx);
+   minValue(hoNDArray<float>(temp(slice,0)), minTx);
 
-  // float maxTy;
-  // float minTy;
-  // maxValue(hoNDArray<float>(temp(slice,1)), maxTy);
-  // minValue(hoNDArray<float>(temp(slice,1)), minTy);
+   float maxTy;
+   float minTy;
+   maxValue(hoNDArray<float>(temp(slice,1)), maxTy);
+   minValue(hoNDArray<float>(temp(slice,1)), minTy);
 
   //for (int ii = 0; ii < size_gradOVS; ii++)
   //{
@@ -293,7 +292,7 @@ if(axisx==axisy)
   //   }
   // }
   hoNDArray<float> trajectories_temp(2,trajectory_and_weights.get_size(1));
-  auto temp=permute(trajectory_and_weights,{1,0});
+  temp=permute(trajectory_and_weights,{1,0});
   trajectories_temp(0,slice)=hoNDArray<float>(temp(slice,0));
   trajectories_temp(1,slice)=hoNDArray<float>(temp(slice,1));
 
