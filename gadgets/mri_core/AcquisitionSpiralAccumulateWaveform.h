@@ -9,33 +9,60 @@
 #include "gadgetron_mricore_export.h"
 #include "mri_core_data.h"
 
-
-namespace Gadgetron {
+namespace Gadgetron
+{
 
     class AcquisitionSpiralAccumulateWaveform
-        : public Core::ChannelGadget<Core::variant<Core::Acquisition, Core::Waveform>> {
+        : public Core::ChannelGadget<Core::variant<Core::Acquisition, Core::Waveform>>
+    {
     public:
         using Core::ChannelGadget<Core::variant<Core::Acquisition, Core::Waveform>>::ChannelGadget;
-        AcquisitionSpiralAccumulateWaveform(const Core::Context& context, const Core::GadgetProperties& props); 
-        
+        AcquisitionSpiralAccumulateWaveform(const Core::Context &context, const Core::GadgetProperties &props);
+
+        enum class SortingDimension {
+            kspace_encode_step_1,
+            kspace_encode_step_2,
+            average,
+            slice,
+            contrast,
+            phase,
+            repetition,
+            set,
+            segment,
+            user_0,
+            user_1,
+            user_2,
+            user_3,
+            user_4,
+            user_5,
+            user_6,
+            user_7,
+            n_acquisitions,
+            none
+        };
     protected:
-            ISMRMRD::IsmrmrdHeader header;
-            void process(Core::InputChannel<Core::variant<Core::Acquisition, Core::Waveform>>& in,
-            Core::OutputChannel& out) override;        
-        int curr_avg=0;
-        float kspace_scaling=0.023;
+        ISMRMRD::IsmrmrdHeader header;
+        NODE_PROPERTY(sorting_dimension, SortingDimension, "Dimension to Sort on", SortingDimension::none);
+
+        int curr_avg = 0;
+        float kspace_scaling = 0;
         hoNDArray<float> prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform_x, const Core::Waveform &grad_waveform_y,
                                                            const ISMRMRD::AcquisitionHeader &head);
-        void calculateWeights();
-        hoNDArray<float> sincInterpolation(const hoNDArray<float> input,int zpadFactor);
-        void send_data(Core::OutputChannel& out, std::map<unsigned short, AcquisitionBucket>& buckets,
-                       std::vector<Core::Waveform>& waveforms);
+        
+        hoNDArray<float> sincInterpolation(const hoNDArray<float> input, int zpadFactor);
 
-        hoNDArray<float> calculate_weights_Hoge(const hoNDArray<float> &gradients, const hoNDArray<float> &trajectories);                    
+        void send_data(Core::OutputChannel &out, std::map<unsigned short, AcquisitionBucket> &buckets,
+                       std::vector<Core::Waveform> &waveforms);
+        
+        void process(Core::InputChannel<Core::variant<Core::Acquisition, Core::Waveform>> &in,
+                     Core::OutputChannel &out) override;
+        
+        hoNDArray<float> calculate_weights_Hoge(const hoNDArray<float> &gradients, const hoNDArray<float> &trajectories);
     };
-    
 
-}
+    void from_string(const std::string& str, AcquisitionSpiralAccumulateWaveform::SortingDimension& val);
+
+} // namespace Gadgetron
 
 // #ifndef SpiralToGenericWaveformGadget_H
 // #define SpiralToGenericWaveformGadget_H
@@ -57,7 +84,7 @@ namespace Gadgetron {
 
 //     class EXPORTGADGETS_SPIRAL SpiralToGenericWaveformGadget :
 //             public Gadget2<ISMRMRD::AcquisitionHeader, ISMRMRD::WaveformHeader> {
-            
+
 //     public:
 //         GADGET_DECLARE(SpiralToGenericWaveformGadget);
 
@@ -71,7 +98,6 @@ namespace Gadgetron {
 
 //         virtual int process(GadgetContainerMessage<ISMRMRD::AcquisitionHeader> *m1,
 //                             GadgetContainerMessage<ISMRMRD::WaveformHeader> *m2);
-                            
 
 //     private:
 

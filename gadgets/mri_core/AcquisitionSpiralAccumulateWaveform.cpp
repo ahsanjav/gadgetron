@@ -9,11 +9,17 @@
 #include <stdio.h>
 #include "hoNDArray_math.h"
 #include "ismrmrd/xml.h"
+#include <boost/algorithm/string.hpp>
 
 constexpr double GAMMA = 4258.0;        /* Hz/G */
 constexpr double PI = boost::math::constants::pi<double>();
 namespace Gadgetron
 {
+      using SortingDimension = AcquisitionSpiralAccumulateWaveform::SortingDimension;
+
+  AcquisitionSpiralAccumulateWaveform::AcquisitionSpiralAccumulateWaveform(const Core::Context& context, const Core::GadgetProperties& props)
+        : ChannelGadget(context, props), header{ context.header } {}
+
 namespace
 {
 bool is_noise(Core::Acquisition &acq)
@@ -32,6 +38,30 @@ void add_stats(AcquisitionBucketStats &stats, const ISMRMRD::AcquisitionHeader &
   stats.set.insert(header.idx.set);
   stats.segment.insert(header.idx.segment);
 }
+unsigned short get_index(const ISMRMRD::AcquisitionHeader& header, SortingDimension index) {
+            switch (index) {
+            case SortingDimension::kspace_encode_step_1: return header.idx.kspace_encode_step_1;
+            case SortingDimension::kspace_encode_step_2: return header.idx.kspace_encode_step_2;
+            case SortingDimension::average: return header.idx.average;
+            case SortingDimension::slice: return header.idx.slice;
+            case SortingDimension::contrast: return header.idx.contrast;
+            case SortingDimension::phase: return header.idx.phase;
+            case SortingDimension::repetition: return header.idx.repetition;
+            case SortingDimension::set: return header.idx.set;
+            case SortingDimension::segment: return header.idx.segment;
+            case SortingDimension::user_0: return header.idx.user[0];
+            case SortingDimension::user_1: return header.idx.user[1];
+            case SortingDimension::user_2: return header.idx.user[2];
+            case SortingDimension::user_3: return header.idx.user[3];
+            case SortingDimension::user_4: return header.idx.user[4];
+            case SortingDimension::user_5: return header.idx.user[5];
+            case SortingDimension::user_6: return header.idx.user[6];
+            case SortingDimension::user_7: return header.idx.user[7];
+            case SortingDimension::n_acquisitions: return 0;
+            case SortingDimension::none: return 0;
+            }
+            throw std::runtime_error("Illegal enum");
+        }
 
 void add_acquisition(AcquisitionBucket &bucket, Core::Acquisition acq)
 {
@@ -83,10 +113,10 @@ void AcquisitionSpiralAccumulateWaveform ::process(
   int waveForm_samples;
   int upsampleFactor;
   
-  // auto matrixsize = header.encoding.front().encodedSpace.matrixSize;
-	// auto fov = header.encoding.front().encodedSpace.fieldOfView_mm;
+   auto matrixsize = header.encoding.front().encodedSpace.matrixSize;
+	 auto fov = header.encoding.front().encodedSpace.fieldOfView_mm;
 
-  // kspace_scaling= 1e-2*fov.x/matrixsize.x;
+   kspace_scaling= 1e-3*fov.x/matrixsize.x;
 
   for (auto message : in)
   {
@@ -131,45 +161,26 @@ void AcquisitionSpiralAccumulateWaveform ::process(
       tmp_dims.push_back(head.active_channels);
       data.reshape(tmp_dims);
       head.number_of_samples = head.number_of_samples - extraSamples;
+
       if (extraSamples != 0)
       {
         hoNDArray<std::complex<float>> data_short(data.get_size(0) - extraSamples, head.active_channels);
         for (int ii = extraSamples; ii < data.get_size(0); ii++)
         {
-          //   GDEBUG("Data [%d,0]: value: %0.2f \n", ii, data(ii,0));
-          data_short(ii - extraSamples, slice) = (data(ii, slice));
+          data_short(ii - extraSamples, slice) = data(ii, slice);
         }
         data = data_short;
       }
-      unsigned short sorting_index = head.idx.average;
-      // std::ofstream ofs("/tmp/traj_grad_acq.log");
-			// for (int ii=0; ii<trajectory_and_weights.get_size(1);ii++){
-			// 	ofs << trajectory_and_weights(0,ii)<< "\t" << trajectory_and_weights(1,ii)<< "\t" << trajectory_and_weights(2,ii)<< std::endl;
-      //   if(abs(trajectory_and_weights(0,ii))>0.5 || abs(trajectory_and_weights(1,ii))>0.5)
-			//     GDEBUG("Interleave: %d \t trajectory1 [%d]: value: %0.2f \t %0.2f \t weights:%0.2f\n",head.idx.kspace_encode_step_1, 
-      //     ii, trajectory_and_weights[ii*3], trajectory_and_weights[ii*3+1],trajectory_and_weights[ii*3+2]);
-			// }
+      
+      unsigned short sorting_index = get_index(head,sorting_dimension);
 
       Core::Acquisition acq = Core::Acquisition(std::move(head), std::move(data), std::move(trajectory_and_weights));
 
-      //      acq = t(std::move(head),std::move(data),std::move(traj));
-      //  *(&acq)->_M_head
-
       counterData+=2;
-      
-      //   head.idx.kspace_encode_step_1;
-
-      //        if (trigger_before(trigger, head))
-      //           send_data(out, buckets, waveforms);
-      // It is enough to put the first one, since they are linked
-      //       unsigned short sorting_index = get_index(head, sorting_dimension);
       
       AcquisitionBucket &bucket = buckets[sorting_index];
       add_acquisition(bucket, std::move(acq));
     }
-    //    if (trigger_after(trigger, head))
-    //      send_data(out, buckets, waveforms);
-    //}
      
   }
    send_data(out, buckets, waveforms);
@@ -178,10 +189,6 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_wa
 {
   using namespace Gadgetron::Indexing;
 
-
-
-  //auto& wave_head = std::get<ISMRMRD::WaveformHeader>(grad_waveform);
-  //auto& wave_data = std::get<hoNDArray<uint32_t>>(grad_waveform);
   auto &[wave_head_x, wave_data_x] = grad_waveform_x;
   auto &[wave_head_y, wave_data_y] = grad_waveform_y;
   
@@ -189,14 +196,6 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_wa
   
   hoNDArray<float> gradient_x(wave_data_x.size() - 16);
   hoNDArray<float> gradient_y(wave_data_y.size() - 16);
-
-  // hoNDArray<std::complex<float>> gradientOVS_x((wave_data_x.size() - 16) * upsampleFactor);
-  // hoNDArray<std::complex<float>> gradientOVS_y((wave_data_y.size() - 16) * upsampleFactor);
-  
-  // hoNDArray<float> trajectory_x((wave_data_x.size() - 16) * upsampleFactor);
-  // hoNDArray<float> trajectory_y((wave_data_y.size() - 16) * upsampleFactor);
-
-  //hoNDArray<float> rotationMatrix(3, 3);
 
   size_t grad_end_index = wave_data_x.size() - 16;
   size_t ghead_st_index = wave_data_x.size() - 16;
@@ -208,29 +207,18 @@ auto w1x=wave_data_x[ghead_st_index+12];
 auto w2x=wave_data_x[ghead_st_index+13];
 auto w1y=wave_data_y[ghead_st_index+12];
 auto w2y=wave_data_y[ghead_st_index+13];
+
 if(head.idx.kspace_encode_step_1 != wave_data_x[ghead_st_index+12] ||
-   //head.idx.kspace_encode_step_2 != wave_data_x[ghead_st_index+13] ||
-   head.idx.kspace_encode_step_1 != wave_data_y[ghead_st_index+12])// ||
-   //head.idx.kspace_encode_step_2 != wave_data_y[ghead_st_index+13] )  
-    GERROR("Trajectory and data interleaves dont match:Becareful the images won't come out right \n");
+   head.idx.kspace_encode_step_2 != wave_data_x[ghead_st_index+13] ||
+   head.idx.kspace_encode_step_1 != wave_data_y[ghead_st_index+12] ||
+   head.idx.kspace_encode_step_2 != wave_data_y[ghead_st_index+13] )  
+    GERROR("Trajectory and data interleaves dont match: Becareful the images won't come out right becuase the trajectories are not correct \n");
 
 if(axisx==axisy)
   GERROR("Waveforms are messeed up \n");
 
   auto trajectory_and_weights = hoNDArray<float>(head.trajectory_dimensions, size_gradOVS);
   auto gradients_interpolated = hoNDArray<float>(head.trajectory_dimensions - 1, size_gradOVS);
-
-// for (int ii = 0 ; ii<16; ii++)
-//   {
-//    headerInfo[ii] = (float)wave_data[ii+ghead_st_index];
-// //   GDEBUG("headerInfo [%d]: value: %0.2f \n", ii, headerInfo[ii]);
-//   }
-//   auto axis = wave_data[11+ghead_st_index];
-
-//   if (axis != 1 && wave_head.waveform_id == 11) // bug in icegadetron not updating the header
-//     axis = 1;
-//   if  (axis != 0 && wave_head.waveform_id == 10) // bug in icegadetron not updating the header
-//     axis =0;
 
   auto wave_data_float_x = hoNDArray<float>(wave_data_x);
   auto wave_data_float_y = hoNDArray<float>(wave_data_y);
@@ -249,48 +237,16 @@ if(axisx==axisy)
   trajectory_and_weights(1,0) = real(gradients_interpolated(1,0));
   for (int ii = 1; ii < size_gradOVS; ii++)
   {
-    //GDEBUG("gradientOVS [%d]: value: %0.2f + i %0.2f\n", ii, real(gradients_interpolated(0,ii)), real(gradients_interpolated(1,ii)));
-    //trajectory_and_weights(0,ii) = real(gradients_interpolated(0,ii)) + trajectory_and_weights(0,ii - 1);
-    //trajectory_and_weights(1,ii) = real(gradients_interpolated(1,ii)) + trajectory_and_weights(1,ii - 1);
-    //trajectory_and_weights[ii*3] = real(gradients_interpolated(0,ii)) + trajectory_and_weights(0,ii - 1);
-    //trajectory_and_weights[ii*3+1] = real(gradients_interpolated(1,ii)) + trajectory_and_weights(1,ii - 1);
-    trajectory_and_weights(0,ii) = (real(gradients_interpolated(0,ii)) + trajectory_and_weights(0,ii - 1))*GAMMA*10*2/1000000*kspace_scaling; // mT/m * Hz/G * 10G * 2e-6
-    trajectory_and_weights(1,ii) = (real(gradients_interpolated(1,ii)) + trajectory_and_weights(1,ii - 1))*GAMMA*10*2/1000000*kspace_scaling; // mT/m * Hz/G * 10G * 2e-6
+    trajectory_and_weights(0,ii) = (real(gradients_interpolated(0,ii))*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(0,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
+    trajectory_and_weights(1,ii) = (real(gradients_interpolated(1,ii))*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(1,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
   }
 
-	//auto x = 0.023;
-	//trajectory_and_weights=Gadgetron::transform(trajectory_and_weights, [x](const float v){return v*x;}); // scale trajectories -1/2-1/2
    float maxTx;
    float minTx;
    auto temp=permute(trajectory_and_weights,{1,0});
    maxValue(hoNDArray<float>(temp(slice,0)), maxTx);
    minValue(hoNDArray<float>(temp(slice,0)), minTx);
 
-   float maxTy;
-   float minTy;
-   maxValue(hoNDArray<float>(temp(slice,1)), maxTy);
-   minValue(hoNDArray<float>(temp(slice,1)), minTy);
-
-  //for (int ii = 0; ii < size_gradOVS; ii++)
-  //{
-   // trajectory_and_weights(0,ii) = trajectory_and_weights(0,ii) / std::max(abs(minTx), abs(maxTx)) * 0.5;
-   // trajectory_and_weights(1,ii) = trajectory_and_weights(1,ii) / std::max(abs(minTy), abs(maxTy)) * 0.5;
-  //  GDEBUG("inFunc Interleave: %d \t trajectory2 [%d]: value: %0.2f\n",head.idx.kspace_encode_step_1, ii, trajectory(ii));
-
-  //}
-  //maxValue(trajectory_x, maxT);
-  //minValue(trajectory_x, minT);
-
-  //
-  
-  // for (int jj = 0; jj < 3; jj++)
-  // {
-  //   for (int ii = 0; ii < 3; ii++)
-  //   {
-  //     rotationMatrix[ii,jj] = (headerInfo[ii+jj*3] / std::numeric_limits<uint32_t>::max()) * 2 - 1;
-  //     GDEBUG("Rotation Matrix [%d][%d]: value: %0.2f \n", ii,jj, rotationMatrix[ii,jj]);
-  //   }
-  // }
   hoNDArray<float> trajectories_temp(2,trajectory_and_weights.get_size(1));
   temp=permute(trajectory_and_weights,{1,0});
   trajectories_temp(0,slice)=hoNDArray<float>(temp(slice,0));
@@ -338,6 +294,28 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::calculate_weights_Hoge(con
 
         return weights;
     }
+    
 GADGETRON_GADGET_EXPORT(AcquisitionSpiralAccumulateWaveform);
 
+namespace {
+        const std::map<std::string, SortingDimension> sortdimension_from_name = {
+
+            { "kspace_encode_step_1", SortingDimension::kspace_encode_step_1 },
+            { "kspace_encode_step_2", SortingDimension::kspace_encode_step_2 },
+            { "average", SortingDimension::average }, { "slice", SortingDimension::slice },
+            { "contrast", SortingDimension::contrast }, { "phase", SortingDimension::phase },
+            { "repetition", SortingDimension::repetition }, { "set", SortingDimension::set },
+            { "segment", SortingDimension::segment }, { "user_0", SortingDimension::user_0 },
+            { "user_1", SortingDimension::user_1 }, { "user_2", SortingDimension::user_2 },
+            { "user_3", SortingDimension::user_3 }, { "user_4", SortingDimension::user_4 },
+            { "user_5", SortingDimension::user_5 }, { "user_6", SortingDimension::user_6 },
+            { "user_7", SortingDimension::user_7 }, { "n_acquisitions", SortingDimension::n_acquisitions },
+            { "none", SortingDimension::none }, { "", SortingDimension::none }
+        };
+    }
+    void from_string(const std::string& str, SortingDimension& sort) {
+        auto lower = str;
+        boost::to_lower(lower);
+        sort = sortdimension_from_name.at(lower);
+    }
 } // namespace Gadgetron

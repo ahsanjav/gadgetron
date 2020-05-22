@@ -27,7 +27,6 @@ namespace Gadgetron {
     protected:
         float kernel_width_;
         float oversampling_factor_;
-        float trajectory_scaling_;
         int ncoils_;
 
         unsigned int process_called_times=0;
