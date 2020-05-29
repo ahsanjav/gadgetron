@@ -10,6 +10,12 @@
 #include "hoNDArray_math.h"
 #include "ismrmrd/xml.h"
 #include <boost/algorithm/string.hpp>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <boost/filesystem/fstream.hpp>
+#include "armadillo"
+#include "mri_core_utility.h"
 
 constexpr double GAMMA = 4258.0;        /* Hz/G */
 constexpr double PI = boost::math::constants::pi<double>();
@@ -118,6 +124,9 @@ void AcquisitionSpiralAccumulateWaveform ::process(
 
    kspace_scaling= 1e-3*fov.x/matrixsize.x;
 
+
+  readGIRFKernel(); // Read GIRF Kernel from file
+
   for (auto message : in)
   {
 
@@ -189,6 +198,18 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_wa
 {
   using namespace Gadgetron::Indexing;
 
+  arma::fmat33 rotation_matrix;
+  rotation_matrix(0, 0) = head.read_dir[0];
+  rotation_matrix(0, 1) = head.read_dir[1];
+  rotation_matrix(0, 2) = head.read_dir[2];
+  rotation_matrix(1, 0) = head.phase_dir[0];
+  rotation_matrix(1, 1) = head.phase_dir[1];
+  rotation_matrix(1, 2) = head.phase_dir[2];
+  rotation_matrix(2, 0) = head.slice_dir[0];
+  rotation_matrix(2, 1) = head.slice_dir[1];
+  rotation_matrix(2, 2) = head.slice_dir[2];
+
+  auto TE_ = header.sequenceParameters.get().TE.get().at(0);
   auto &[wave_head_x, wave_data_x] = grad_waveform_x;
   auto &[wave_head_y, wave_data_y] = grad_waveform_y;
   
@@ -196,11 +217,13 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_wa
   
   hoNDArray<float> gradient_x(wave_data_x.size() - 16);
   hoNDArray<float> gradient_y(wave_data_y.size() - 16);
+  hoNDArray<floatd2> gradients(wave_data_y.size() - 16);
 
   size_t grad_end_index = wave_data_x.size() - 16;
   size_t ghead_st_index = wave_data_x.size() - 16;
   size_t size_gradOVS = gradient_x.size() * upsampleFactor;
 
+// Checking if the trajectories index and data indexes match 
 auto axisx = wave_data_x[11+ghead_st_index];
 auto axisy = wave_data_y[11+ghead_st_index];
 auto w1x=wave_data_x[ghead_st_index+12];
@@ -212,89 +235,292 @@ if(head.idx.kspace_encode_step_1 != wave_data_x[ghead_st_index+12] ||
    head.idx.kspace_encode_step_2 != wave_data_x[ghead_st_index+13] ||
    head.idx.kspace_encode_step_1 != wave_data_y[ghead_st_index+12] ||
    head.idx.kspace_encode_step_2 != wave_data_y[ghead_st_index+13] )  
-    GERROR("Trajectory and data interleaves dont match: Becareful the images won't come out right becuase the trajectories are not correct \n");
+    GERROR("Trajectory and data interleaves dont match: Be careful the images won't come out right becuase the trajectories are not correct \n");
 
 if(axisx==axisy)
   GERROR("Waveforms are messeed up \n");
 
+//
   auto trajectory_and_weights = hoNDArray<float>(head.trajectory_dimensions, size_gradOVS);
-  auto gradients_interpolated = hoNDArray<float>(head.trajectory_dimensions - 1, size_gradOVS);
+  auto trajectory_and_weights_corrected = hoNDArray<float>(head.trajectory_dimensions, size_gradOVS);
 
+  // auto gradients_interpolated = hoNDArray<floatd2>(size_gradOVS);
+   
   auto wave_data_float_x = hoNDArray<float>(wave_data_x);
   auto wave_data_float_y = hoNDArray<float>(wave_data_y);
   for (int ii = 0; ii < grad_end_index; ii++)
   {
-    gradient_x[ii] = (wave_data_float_x[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
-    gradient_y[ii] = (wave_data_float_y[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
+    gradients(ii)[0] = (wave_data_float_x[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
+    gradients(ii)[1] = (wave_data_float_y[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
 
   //   GDEBUG("Gradient [%d]: value: %0.2f \t %0.2f\n", ii, gradient_x[ii],gradient_y[ii]);
   }
+  
+   auto gradients_interpolated = zeroHoldInterpolation(gradients, upsampleFactor);
+    // hoNDArray<floatd2> gradients_interpolated(size_gradOVS);
 
-  gradients_interpolated(0,slice) = sincInterpolation(gradient_x, upsampleFactor);
-  gradients_interpolated(1,slice) = sincInterpolation(gradient_y, upsampleFactor);
+    // for (int ii=0; ii<size_gradOVS; ii++)
+    // {
+    //   gradients_interpolated(ii)=gradients(int(ii/5));
+    // }
 
-  trajectory_and_weights(0,0) = real(gradients_interpolated(0,0));
-  trajectory_and_weights(1,0) = real(gradients_interpolated(1,0));
+  //  float maxGx1=0;
+  //  float maxGy1=0;
+  //  float minGx1=0;
+  //  float minGy1=0;
+  //  for (auto ele : gradients_interpolated)
+  //  {
+  //    if(ele[0]>maxGx1)
+  //     maxGx1=ele[0];
+  //     if(ele[0]<minGx1)
+  //     minGx1=ele[0];
+
+  //     if(ele[1]>maxGy1)
+  //     maxGy1=ele[1];
+  //     if(ele[1]<minGy1)
+  //     minGy1=ele[1];
+
+
+  //  }
+
+   //auto corrected_gradients  = GIRF::girf_correct(gradients, girf_kernel, rotation_matrix, 10e-6, 10e-6, 0.85e-6);
+  //gradients_interpolated[0] = sincInterpolation(gradients[0], upsampleFactor);
+  //gradients_interpolated[1] = sincInterpolation(gradients[1], upsampleFactor);
+   //auto corrected_gradients_interpolated  = zeroHoldInterpolation(corrected_gradients, upsampleFactor);
+   auto corrected_interpolated_gradients  = GIRF::girf_correct(gradients_interpolated, girf_kernel, rotation_matrix, 2e-6, 10e-6, 0.85e-6);
+
+
+  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(0)[0],corrected_interpolated_gradients(0)[1]);
+  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(199)[0],corrected_interpolated_gradients(199)[1]);
+  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(249)[0],corrected_interpolated_gradients(249)[1]);
+  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(301)[0],corrected_interpolated_gradients(301)[1]);
+  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(999)[0],corrected_interpolated_gradients(999)[1]);
+  //  float maxGx=0;
+  //  float maxGy=0;
+  //  float minGx=0;
+  //  float minGy=0;
+  //  for (auto ele : corrected_interpolated_gradients)
+  //  {
+  //    if(ele[0]>maxGx) maxGx=ele[0];
+  //    if(ele[0]<minGx) minGx=ele[0];
+  //    if(ele[1]>maxGy) maxGy=ele[1];
+  //    if(ele[1]<minGy) minGy=ele[1];
+
+
+  //  }
+
+   //maxValue(*temp[0], maxGx);
+   //minValue(temp, minGx);
+
+
+  trajectory_and_weights(0,0) = (corrected_interpolated_gradients(0)[0])*GAMMA*10*2/1000000*kspace_scaling;
+  trajectory_and_weights(1,0) = (corrected_interpolated_gradients(0)[1])*GAMMA*10*2/1000000*kspace_scaling;
   for (int ii = 1; ii < size_gradOVS; ii++)
   {
-    trajectory_and_weights(0,ii) = (real(gradients_interpolated(0,ii))*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(0,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
-    trajectory_and_weights(1,ii) = (real(gradients_interpolated(1,ii))*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(1,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
+    trajectory_and_weights(0,ii) = ((corrected_interpolated_gradients(ii)[0])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(0,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
+    trajectory_and_weights(1,ii) = ((corrected_interpolated_gradients(ii)[1])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(1,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
   }
 
-   float maxTx;
-   float minTx;
-   auto temp=permute(trajectory_and_weights,{1,0});
-   maxValue(hoNDArray<float>(temp(slice,0)), maxTx);
-   minValue(hoNDArray<float>(temp(slice,0)), minTx);
+  // if(head.idx.kspace_encode_step_2==0){
 
+  //     //printGradtoFile("Gradient_unc_" + std::to_string(head.idx.kspace_encode_step_1)+".log"           , gradients);
+  //     //printGradtoFile("Gradient_corrected_" + std::to_string(head.idx.kspace_encode_step_1) + ".log"   , corrected_gradients);
+  //     //printGradtoFile("Gradient_unc_int" + std::to_string(head.idx.kspace_encode_step_1)+".log"        , gradients_interpolated);
+  //     //printGradtoFile("Gradient_corrected_int" + std::to_string(head.idx.kspace_encode_step_1) + ".log", corrected_gradients_interpolated);
+  //     printGradtoFile("Gradient_int_corrected" + std::to_string(head.idx.kspace_encode_step_1) + ".log", corrected_interpolated_gradients);
+  //     printTrajtoFile("Trajectory_int_corrected" + std::to_string(head.idx.kspace_encode_step_1) + ".log", trajectory_and_weights);
+  // }
+
+  //  float maxTx;
+  //  float minTx;
+  //  auto temp=permute(trajectory_and_weights,{1,0});
+  //  maxValue(hoNDArray<float>(temp(slice,0)), maxTx);
+  //  minValue(hoNDArray<float>(temp(slice,0)), minTx);
+
+  // if(maxTx>newscaling)
+  // newscaling=maxTx;
+
+  // if(minTx<-newscaling)
+  // newscaling=abs(minTx);
+
+
+  // trajectory_and_weights_corrected(0,0) = (corrected_gradients(0)[0]);
+  // trajectory_and_weights_corrected(1,0) = (corrected_gradients(0)[1]);
+  // for (int ii = 1; ii < size_gradOVS; ii++)
+  // {
+  //   trajectory_and_weights_corrected(0,ii) = ((corrected_gradients(ii)[0])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights_corrected(0,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
+  //   trajectory_and_weights_corrected(1,ii) = ((corrected_gradients(ii)[1])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights_corrected(1,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
+  // }
+
+  // float maxTx1;
+  //  float minTx1;
+  // temp=permute(trajectory_and_weights_corrected,{1,0});
+  //  maxValue(hoNDArray<float>(temp(slice,0)), maxTx1);
+  //  minValue(hoNDArray<float>(temp(slice,0)), minTx1);
+
+  // if(maxTx1>newscaling1)
+  // newscaling1=maxTx1;
+
+  // if(minTx1<-newscaling1)
+  // newscaling1=abs(minTx1);
+
+  // GDEBUG("maxTx1: %0.3f \t minTx1: %0.3f \n",maxTx,minTx);
+  
+  
   hoNDArray<float> trajectories_temp(2,trajectory_and_weights.get_size(1));
-  temp=permute(trajectory_and_weights,{1,0});
-  trajectories_temp(0,slice)=hoNDArray<float>(temp(slice,0));
-  trajectories_temp(1,slice)=hoNDArray<float>(temp(slice,1));
+  auto temp2=permute(trajectory_and_weights,{1,0});
+  trajectories_temp(0,slice)=hoNDArray<float>(temp2(slice,0));
+  trajectories_temp(1,slice)=hoNDArray<float>(temp2(slice,1));
 
-  trajectory_and_weights(2,slice) = calculate_weights_Hoge(gradients_interpolated, trajectories_temp);
+  trajectory_and_weights(2,slice) = calculate_weights_Hoge(corrected_interpolated_gradients, trajectories_temp);
   
   return trajectory_and_weights;
 }
 
-hoNDArray<float> AcquisitionSpiralAccumulateWaveform::sincInterpolation(const hoNDArray<float> input, int zpadFactor)
+hoNDArray<floatd2> AcquisitionSpiralAccumulateWaveform::sincInterpolation(const hoNDArray<floatd2> input, int zpadFactor)
 {
-  hoNDArray<std::complex<float>> output(input.size() * zpadFactor);
-  std::fill(output.begin(), output.end(), 0);
-  auto cinput = hoNDArray<std::complex<float>>(input);
-  hoNDFFT<float>::instance()->fft1c(cinput);
-  for (int ii = 0; ii < output.size(); ii++)
-  {
-    if (ii > output.size() / 2 - cinput.size() / 2 - 1 && ii < output.size() / 2 + (cinput.size() / 2))
-    {
-      output(ii) = cinput(ii - (output.size() / 2 - cinput.size() / 2));
-    //   GDEBUG("output [%d]: value: %0.2f + i %0.2f\n", ii, real(output[ii]), imag(output[ii]));
-    }
-  }
+  hoNDArray<floatd2> output(input.size() * zpadFactor);
+  //std::fill(output.begin(), output.end(), 0);
+  hoNDArray<std::complex<float>> cinput  = hoNDArray<std::complex<float>>(input.size());
+  hoNDArray<std::complex<float>> coutput = hoNDArray<std::complex<float>>(input.size()* zpadFactor);
 
-  hoNDFFT<float>::instance()->ifft1c(output);
-  output *= sqrt(zpadFactor);
-  return real(output);
+  for (int jj=0;jj<2;jj++){
+
+    std::fill(coutput.begin(), coutput.end(), 0);
+    
+    for (int zz=0;zz<cinput.size();zz++){
+      cinput(zz)=(input(zz)[jj]);
+  //     GDEBUG("cinput [%d]: value: %d \n", zz, real(cinput[zz]));
+
+    }
+    //auto temp = hoNDArray<std::complex<float>>(input[jj]);
+    //cinput=hoNDArray<std::complex<float>>(cinput);
+    hoNDFFT<float>::instance()->fft1c(cinput);
+
+    for (int ii = 0; ii < coutput.size(); ii++)
+    {
+      if (ii > coutput.size() / 2 - cinput.size() / 2 - 1 && ii < coutput.size() / 2 + (cinput.size() / 2))
+      {
+        coutput(ii) = cinput(ii - (output.size() / 2 - cinput.size() / 2));
+        //   GDEBUG("output [%d]: value: %0.2f + i %0.2f\n", ii, real(output[ii]), imag(output[ii]));
+      }
+    }
+
+    hoNDFFT<float>::instance()->ifft1c(coutput);
+    coutput *= sqrt(zpadFactor);
+    for (int zz=0;zz<coutput.size();zz++)
+    {
+      output(zz)[jj]=real(coutput(zz));
+  //               GDEBUG("output [%d]: value: %d \n", zz, output(zz)[jj]);
+
+    }
+
+  }
+ // output *= sqrt(zpadFactor);
+  return output;
+}
+hoNDArray<floatd2> AcquisitionSpiralAccumulateWaveform::zeroHoldInterpolation(const hoNDArray<floatd2> input, int zpadFactor)
+{
+   hoNDArray<floatd2> output(input.size()*zpadFactor);
+
+     for (int ii=0; ii<input.size()*zpadFactor; ii++)
+     {
+       output(ii)=input(int(ii/zpadFactor));
+     } 
+     return output;
 }
 
-hoNDArray<float> AcquisitionSpiralAccumulateWaveform::calculate_weights_Hoge(const hoNDArray<float> &gradients, const hoNDArray<float> &trajectories) {
+hoNDArray<float> AcquisitionSpiralAccumulateWaveform::calculate_weights_Hoge(const hoNDArray<floatd2> &gradients, const hoNDArray<float> &trajectories) {
 
     using namespace Gadgetron::Indexing;
-        hoNDArray<float> weights(gradients.get_size(1),1);
-        for (int ii=0;ii<gradients.get_size(1);ii++)
+        hoNDArray<float> weights(trajectories.get_size(1),1);
+        for (int ii=0;ii<trajectories.get_size(1);ii++)
         {
 
-        auto abs_g = sqrt(gradients(0, ii) * gradients(0, ii) + gradients(1, ii) * gradients(1, ii));
+        auto abs_g = sqrt(gradients(ii)[0] * gradients(ii)[0] + gradients(ii)[1] * gradients(ii)[1]);
         auto abs_t = sqrt(trajectories(0, ii) * trajectories(0, ii) + trajectories(1, ii) * trajectories(1, ii));
-        auto ang_g = atan2(gradients(1,ii),gradients(0,ii));
+        auto ang_g = atan2(gradients(ii)[1],gradients(ii)[0]);
         auto ang_t = atan2(trajectories(1,ii),trajectories(0,ii));
           weights(ii)=abs(cos(ang_g-ang_t))*abs_g*abs_t;
+    //       GDEBUG("weights [%d]: value: %0.6f \n", ii, weights(ii));
         }           
          
 
         return weights;
     }
-    
+  void AcquisitionSpiralAccumulateWaveform::readGIRFKernel(){
+    using namespace std;
+    using namespace boost::filesystem;
+    using namespace Gadgetron::Indexing;
+    path fnamex = "/opt/data/GIRF/GIRFx.txt";
+    path fnamey = "/opt/data/GIRF/GIRFy.txt";
+    path fnamez = "/opt/data/GIRF/GIRFz.txt";
+
+    boost::filesystem::fstream filex, filey, filez;
+    filex.open(fnamex);
+    filey.open(fnamey);
+    filez.open(fnamez);
+
+    vector<std::complex<float>> girfx;
+    vector<std::complex<float>> girfy;
+    vector<std::complex<float>> girfz;
+    string temp_line;
+
+    // Header first 4 lines
+    for (int ii = 0; ii < 4; ii++)
+    {
+      getline(filex, temp_line);
+      if (ii == 0)
+        girf_numpoint = stoi(temp_line);
+      if (ii == 2)
+        girf_sampletime = stod(temp_line);
+
+      getline(filey, temp_line); // got info from x no need for y and z but still need to skip the lines
+      getline(filez, temp_line);
+    }
+
+    girf_kernel = hoNDArray<std::complex<float>>(girf_numpoint,3);
+    string temp_liner;
+    string temp_linei;
+    int index=0;
+    while (getline(filex, temp_liner))
+    {
+      getline(filex, temp_linei);
+      girf_kernel(index,1)=complex<float>(stod(temp_liner),stod(temp_linei));
+      
+      getline(filey, temp_liner);
+      getline(filey, temp_linei);
+      girf_kernel(index,0)=complex<float>(stod(temp_liner),stod(temp_linei));
+      
+      getline(filez, temp_liner);
+      getline(filez, temp_linei);
+      girf_kernel(index,2)=complex<float>(stod(temp_liner),stod(temp_linei));
+      index++;
+      //pushback(stod(temp_line));
+    }
+
+   // std::copy(girfx.begin(),girfx.end(),);
+
+ //   for (auto inp : girfx)
+ //    GDEBUG("GIRFX: %0.6f + j%0.6f \n", real(inp),imag(inp));
+  }
+
+void AcquisitionSpiralAccumulateWaveform::printGradtoFile(std::string fname_grad, hoNDArray<floatd2> grad_traj)
+{
+  std::ofstream of(fname_grad);
+  for (auto ele : grad_traj)
+    of << ele[0] << "\t" << ele[1] << "\n";
+  of.close();  
+}
+
+void AcquisitionSpiralAccumulateWaveform::printTrajtoFile(std::string fname_grad, hoNDArray<float> grad_traj)
+{
+  std::ofstream of(fname_grad);
+  for (int i=0;i<grad_traj.get_size(1);i++)
+    of << grad_traj(0,i) << "\t" << grad_traj(1,i) << "\n";
+  of.close();  
+}
+
 GADGETRON_GADGET_EXPORT(AcquisitionSpiralAccumulateWaveform);
 
 namespace {

@@ -30,5 +30,7 @@ namespace Gadgetron {
         girf_correct(const hoNDArray<floatd2> &gradients, const hoNDArray <std::complex<float>> &girf_kernel,
                              const arma::fmat33 &rotation_matrix, float gradient_sampling_time,
                              float girf_sampling_time, float TE);
+
+        hoNDArray<std::complex<float>> zeropadding(hoNDArray<std::complex<float>> input, int zpadFactor);
     }
 }

@@ -8,8 +8,8 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/home/javeda2/local/bin/gadgetron",
-            "args": ["-p", "9004","-W","/home/javeda2/tmp/"],
+            "program": "/usr/local/bin/gadgetron",
+            "args": ["-p","9080"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -24,11 +24,19 @@
             ]
         },
         {
-             "name": "(gdb) Launch",
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch",
+            "program": "/usr/local/bin/gadgetron",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${command:cmake.launchTargetPath}"            ,
-            "args": ["-p", "9004","-W","/home/javeda2/tmp/"],
+            "program": "/usr/local/bin/gadgetron",
+            "args": ["-p","9080","-W","/tmp/"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -41,6 +49,6 @@
                     "ignoreFailures": true
                 }
             ]
-        }
+        },
     ]
 }

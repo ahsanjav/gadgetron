@@ -19,6 +19,8 @@
 #include <boost/range/algorithm.hpp>
 #include <boost/lambda/lambda.hpp>
 #include <boost/lambda/bind.hpp>
+#include <omp.h>
+
 namespace Gadgetron
 {
 
@@ -95,7 +97,6 @@ namespace Gadgetron
                 m1->release();
                 return GADGET_FAIL;
             }
-
             std::vector<size_t> reshapeVec = {RO, E1, E2, CHA, N, S, SLC};
             boost::shared_ptr<ARRAY<float>> dcw;
             boost::shared_ptr<ARRAY<floatd2>> traj;
@@ -104,7 +105,21 @@ namespace Gadgetron
             auto &bdata = *(hoNDArray<std::complex<float>> *)(&buffer->data_);
             auto bdata_permuted = permute(bdata, {0, 1, 5, 6, 3, 4, 2});
 
-            
+            // float maxTx;
+            // float minTx;
+            // auto temp = permute(trajectory_all, {1, 2 ,3 ,4, 0});
+
+            // maxValue(hoNDArray<float>(temp(slice,slice,slice,slice,0)), maxTx);
+            // minValue(hoNDArray<float>(temp(slice,slice,slice,slice,0)), minTx);
+
+            // float maxTy;
+            // float minTy;
+            // temp = permute(trajectory_all, {1, 2 ,3 ,4, 0});
+
+            // maxValue(hoNDArray<float>(temp(slice,slice,slice,slice,1)), maxTy);
+            // minValue(hoNDArray<float>(temp(slice,slice,slice,slice,1)), minTy);
+
+                //std::transform(trajectory_all.begin(),trajectory_all.e)
                 bdata_permuted = sum(bdata_permuted, 5);
                 std::transform(bdata_permuted.begin(), bdata_permuted.end(),
                                bdata_permuted.begin(), [N](auto x) { return x / std::complex<float>(N); }); // to make the sum a mean
@@ -116,7 +131,10 @@ namespace Gadgetron
             }
 
             hoNDFFT<float>::instance()->ifft(&bdata_permuted, (bdata_permuted.get_dimensions()->size()-1)); // make sure slice is the last dimension
-
+            //#pragma omp parallel
+            //#pragma omp parallel private(iSL,trajectory,traj_dcw,dcw,traj,bdata_sliced,data,images,csm,combined,host_img,IsmrmrdImageArray,m3) shared(RO, E1, CHA, bdata_permuted,)
+            
+     //       #pragma omp for
             for (int iSL = 0; iSL < E2; iSL++)
             {
                 
@@ -191,6 +209,7 @@ namespace Gadgetron
                     pseudo_replica(buffer->data_, *traj, *dcw, csm, recon_bit_->rbit_[e], e, CHA);
                 }
             }
+            
         }
         m1->release();
 
