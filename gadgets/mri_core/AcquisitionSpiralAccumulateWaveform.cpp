@@ -16,6 +16,8 @@
 #include <boost/filesystem/fstream.hpp>
 #include "armadillo"
 #include "mri_core_utility.h"
+#include "GadgetronTimer.h"
+
 
 constexpr double GAMMA = 4258.0;        /* Hz/G */
 constexpr double PI = boost::math::constants::pi<double>();
@@ -127,6 +129,8 @@ void AcquisitionSpiralAccumulateWaveform ::process(
 
   readGIRFKernel(); // Read GIRF Kernel from file
 
+  GadgetronTimer timer("Preparing Acquisition");
+
   for (auto message : in)
   {
 
@@ -159,8 +163,17 @@ void AcquisitionSpiralAccumulateWaveform ::process(
       // Prepare Trajectory for each acq and push the bucked through
       head.trajectory_dimensions = 3;
       upsampleFactor = head.number_of_samples / waveForm_samples;
-      
-      auto trajectory_and_weights= prepare_trajectory_from_waveforms(grad_waveforms[counterData],grad_waveforms[counterData+1], head);
+      hoNDArray<float> trajectory_and_weights;
+
+      if(trajectory_map.find(head.idx.kspace_encode_step_1)==trajectory_map.end())
+      {
+        trajectory_and_weights = prepare_trajectory_from_waveforms(grad_waveforms[counterData],grad_waveforms[counterData+1], head);
+        trajectory_map.insert(std::pair<size_t,hoNDArray<float>>(head.idx.kspace_encode_step_1,trajectory_and_weights));
+      }
+      else
+      {
+        trajectory_and_weights = trajectory_map.find(head.idx.kspace_encode_step_1)->second;
+      }
       head.trajectory_dimensions = 3;
       //grad_waveforms.erase(grad_waveforms.begin(), grad_waveforms.begin() + 1);
       int extraSamples = head.number_of_samples - waveForm_samples * upsampleFactor;
@@ -181,6 +194,11 @@ void AcquisitionSpiralAccumulateWaveform ::process(
         data = data_short;
       }
       
+       if(sorting_dimension==SortingDimension::average && head.idx.average>curAvg){
+        curAvg=head.idx.average;
+        send_data(out, buckets, waveforms);
+      }
+
       unsigned short sorting_index = get_index(head,sorting_dimension);
 
       Core::Acquisition acq = Core::Acquisition(std::move(head), std::move(data), std::move(trajectory_and_weights));
@@ -189,10 +207,14 @@ void AcquisitionSpiralAccumulateWaveform ::process(
       
       AcquisitionBucket &bucket = buckets[sorting_index];
       add_acquisition(bucket, std::move(acq));
-    }
+
      
+    }
+ 
   }
-   send_data(out, buckets, waveforms);
+  GadgetronTimer timer1("Ending Acquisition");
+
+  send_data(out, buckets, waveforms);
 }
 hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform_x, const Core::Waveform &grad_waveform_y, const ISMRMRD::AcquisitionHeader &head)
 {
@@ -240,78 +262,21 @@ if(head.idx.kspace_encode_step_1 != wave_data_x[ghead_st_index+12] ||
 if(axisx==axisy)
   GERROR("Waveforms are messeed up \n");
 
-//
   auto trajectory_and_weights = hoNDArray<float>(head.trajectory_dimensions, size_gradOVS);
-  auto trajectory_and_weights_corrected = hoNDArray<float>(head.trajectory_dimensions, size_gradOVS);
 
-  // auto gradients_interpolated = hoNDArray<floatd2>(size_gradOVS);
-   
   auto wave_data_float_x = hoNDArray<float>(wave_data_x);
   auto wave_data_float_y = hoNDArray<float>(wave_data_y);
+
   for (int ii = 0; ii < grad_end_index; ii++)
   {
     gradients(ii)[0] = (wave_data_float_x[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
     gradients(ii)[1] = (wave_data_float_y[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
 
-  //   GDEBUG("Gradient [%d]: value: %0.2f \t %0.2f\n", ii, gradient_x[ii],gradient_y[ii]);
   }
   
    auto gradients_interpolated = zeroHoldInterpolation(gradients, upsampleFactor);
-    // hoNDArray<floatd2> gradients_interpolated(size_gradOVS);
-
-    // for (int ii=0; ii<size_gradOVS; ii++)
-    // {
-    //   gradients_interpolated(ii)=gradients(int(ii/5));
-    // }
-
-  //  float maxGx1=0;
-  //  float maxGy1=0;
-  //  float minGx1=0;
-  //  float minGy1=0;
-  //  for (auto ele : gradients_interpolated)
-  //  {
-  //    if(ele[0]>maxGx1)
-  //     maxGx1=ele[0];
-  //     if(ele[0]<minGx1)
-  //     minGx1=ele[0];
-
-  //     if(ele[1]>maxGy1)
-  //     maxGy1=ele[1];
-  //     if(ele[1]<minGy1)
-  //     minGy1=ele[1];
-
-
-  //  }
-
-   //auto corrected_gradients  = GIRF::girf_correct(gradients, girf_kernel, rotation_matrix, 10e-6, 10e-6, 0.85e-6);
-  //gradients_interpolated[0] = sincInterpolation(gradients[0], upsampleFactor);
-  //gradients_interpolated[1] = sincInterpolation(gradients[1], upsampleFactor);
-   //auto corrected_gradients_interpolated  = zeroHoldInterpolation(corrected_gradients, upsampleFactor);
+    
    auto corrected_interpolated_gradients  = GIRF::girf_correct(gradients_interpolated, girf_kernel, rotation_matrix, 2e-6, 10e-6, 0.85e-6);
-
-
-  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(0)[0],corrected_interpolated_gradients(0)[1]);
-  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(199)[0],corrected_interpolated_gradients(199)[1]);
-  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(249)[0],corrected_interpolated_gradients(249)[1]);
-  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(301)[0],corrected_interpolated_gradients(301)[1]);
-  // GDEBUG("First 5 points: x(%0.2f) + y(%0.2f) \n",corrected_interpolated_gradients(999)[0],corrected_interpolated_gradients(999)[1]);
-  //  float maxGx=0;
-  //  float maxGy=0;
-  //  float minGx=0;
-  //  float minGy=0;
-  //  for (auto ele : corrected_interpolated_gradients)
-  //  {
-  //    if(ele[0]>maxGx) maxGx=ele[0];
-  //    if(ele[0]<minGx) minGx=ele[0];
-  //    if(ele[1]>maxGy) maxGy=ele[1];
-  //    if(ele[1]<minGy) minGy=ele[1];
-
-
-  //  }
-
-   //maxValue(*temp[0], maxGx);
-   //minValue(temp, minGx);
-
 
   trajectory_and_weights(0,0) = (corrected_interpolated_gradients(0)[0])*GAMMA*10*2/1000000*kspace_scaling;
   trajectory_and_weights(1,0) = (corrected_interpolated_gradients(0)[1])*GAMMA*10*2/1000000*kspace_scaling;
@@ -320,52 +285,6 @@ if(axisx==axisy)
     trajectory_and_weights(0,ii) = ((corrected_interpolated_gradients(ii)[0])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(0,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
     trajectory_and_weights(1,ii) = ((corrected_interpolated_gradients(ii)[1])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights(1,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
   }
-
-  // if(head.idx.kspace_encode_step_2==0){
-
-  //     //printGradtoFile("Gradient_unc_" + std::to_string(head.idx.kspace_encode_step_1)+".log"           , gradients);
-  //     //printGradtoFile("Gradient_corrected_" + std::to_string(head.idx.kspace_encode_step_1) + ".log"   , corrected_gradients);
-  //     //printGradtoFile("Gradient_unc_int" + std::to_string(head.idx.kspace_encode_step_1)+".log"        , gradients_interpolated);
-  //     //printGradtoFile("Gradient_corrected_int" + std::to_string(head.idx.kspace_encode_step_1) + ".log", corrected_gradients_interpolated);
-  //     printGradtoFile("Gradient_int_corrected" + std::to_string(head.idx.kspace_encode_step_1) + ".log", corrected_interpolated_gradients);
-  //     printTrajtoFile("Trajectory_int_corrected" + std::to_string(head.idx.kspace_encode_step_1) + ".log", trajectory_and_weights);
-  // }
-
-  //  float maxTx;
-  //  float minTx;
-  //  auto temp=permute(trajectory_and_weights,{1,0});
-  //  maxValue(hoNDArray<float>(temp(slice,0)), maxTx);
-  //  minValue(hoNDArray<float>(temp(slice,0)), minTx);
-
-  // if(maxTx>newscaling)
-  // newscaling=maxTx;
-
-  // if(minTx<-newscaling)
-  // newscaling=abs(minTx);
-
-
-  // trajectory_and_weights_corrected(0,0) = (corrected_gradients(0)[0]);
-  // trajectory_and_weights_corrected(1,0) = (corrected_gradients(0)[1]);
-  // for (int ii = 1; ii < size_gradOVS; ii++)
-  // {
-  //   trajectory_and_weights_corrected(0,ii) = ((corrected_gradients(ii)[0])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights_corrected(0,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
-  //   trajectory_and_weights_corrected(1,ii) = ((corrected_gradients(ii)[1])*GAMMA*10*2/1000000*kspace_scaling + trajectory_and_weights_corrected(1,ii - 1)); // mT/m * Hz/G * 10G * 2e-6
-  // }
-
-  // float maxTx1;
-  //  float minTx1;
-  // temp=permute(trajectory_and_weights_corrected,{1,0});
-  //  maxValue(hoNDArray<float>(temp(slice,0)), maxTx1);
-  //  minValue(hoNDArray<float>(temp(slice,0)), minTx1);
-
-  // if(maxTx1>newscaling1)
-  // newscaling1=maxTx1;
-
-  // if(minTx1<-newscaling1)
-  // newscaling1=abs(minTx1);
-
-  // GDEBUG("maxTx1: %0.3f \t minTx1: %0.3f \n",maxTx,minTx);
-  
   
   hoNDArray<float> trajectories_temp(2,trajectory_and_weights.get_size(1));
   auto temp2=permute(trajectory_and_weights,{1,0});

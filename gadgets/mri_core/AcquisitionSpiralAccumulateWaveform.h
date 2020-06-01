@@ -51,9 +51,11 @@ namespace Gadgetron
         int girf_numpoint;
         float newscaling=0.5; 
         float newscaling1=0.5;
-
+        std::map<size_t,hoNDArray<float>> trajectory_map;
+        size_t curAvg=0;
     protected:
         ISMRMRD::IsmrmrdHeader header;
+
         NODE_PROPERTY(sorting_dimension, SortingDimension, "Dimension to Sort on", SortingDimension::none);
 
         int curr_avg = 0;

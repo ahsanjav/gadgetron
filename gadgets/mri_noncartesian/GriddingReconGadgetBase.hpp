@@ -104,22 +104,8 @@ namespace Gadgetron
             auto &trajectory_all = *buffer->trajectory_;
             auto &bdata = *(hoNDArray<std::complex<float>> *)(&buffer->data_);
             auto bdata_permuted = permute(bdata, {0, 1, 5, 6, 3, 4, 2});
-
-            // float maxTx;
-            // float minTx;
-            // auto temp = permute(trajectory_all, {1, 2 ,3 ,4, 0});
-
-            // maxValue(hoNDArray<float>(temp(slice,slice,slice,slice,0)), maxTx);
-            // minValue(hoNDArray<float>(temp(slice,slice,slice,slice,0)), minTx);
-
-            // float maxTy;
-            // float minTy;
-            // temp = permute(trajectory_all, {1, 2 ,3 ,4, 0});
-
-            // maxValue(hoNDArray<float>(temp(slice,slice,slice,slice,1)), maxTy);
-            // minValue(hoNDArray<float>(temp(slice,slice,slice,slice,1)), minTy);
-
-                //std::transform(trajectory_all.begin(),trajectory_all.e)
+            hoNDArray<std::complex<float>> images_all(image_dims_[0],image_dims_[1],E2);
+       
                 bdata_permuted = sum(bdata_permuted, 5);
                 std::transform(bdata_permuted.begin(), bdata_permuted.end(),
                                bdata_permuted.begin(), [N](auto x) { return x / std::complex<float>(N); }); // to make the sum a mean
@@ -131,10 +117,10 @@ namespace Gadgetron
             }
 
             hoNDFFT<float>::instance()->ifft(&bdata_permuted, (bdata_permuted.get_dimensions()->size()-1)); // make sure slice is the last dimension
-            //#pragma omp parallel
+            #pragma omp parallel
             //#pragma omp parallel private(iSL,trajectory,traj_dcw,dcw,traj,bdata_sliced,data,images,csm,combined,host_img,IsmrmrdImageArray,m3) shared(RO, E1, CHA, bdata_permuted,)
             
-     //       #pragma omp for
+            #pragma omp for
             for (int iSL = 0; iSL < E2; iSL++)
             {
                 
@@ -180,13 +166,15 @@ namespace Gadgetron
                 auto combined = sum(images.get(), images->get_number_of_dimensions() - 1);
 
                 auto host_img = as_hoNDArray(combined);
-
+                images_all(slice,slice,iSL)=std::move(*boost::reinterpret_pointer_cast<decltype(images_all)>(host_img));
+            }
                 IsmrmrdImageArray imarray;
 
                 auto elements = imarray.data_.get_number_of_elements();
-                imarray.data_ = std::move(*boost::reinterpret_pointer_cast<decltype(imarray.data_)>(host_img));
+                 imarray.data_=images_all;
+               // imarray.data_ = std::move(*boost::reinterpret_pointer_cast<decltype(imarray.data_)>(host_img));
                 //          memcpy(imarray.data_.get_data_ptr(), host_img->get_data_ptr(), host_img->get_number_of_bytes());
-                recon_bit_->rbit_[e].data_.headers_[0].idx.slice = iSL;
+                //recon_bit_->rbit_[e].data_.headers_[0].idx.slice = iSL;
 
                 NonCartesian::append_image_header(imarray, recon_bit_->rbit_[e], e);
                 this->prepare_image_array(imarray, e, ((int)e + 1), GADGETRON_IMAGE_REGULAR);
@@ -203,12 +191,12 @@ namespace Gadgetron
                 }
 
                 //Is this where we measure SNR?
-                if (replicas.value() > 0 && snr_frame.value() == process_called_times)
-                {
+                // if (replicas.value() > 0 && snr_frame.value() == process_called_times)
+                // {
 
-                    pseudo_replica(buffer->data_, *traj, *dcw, csm, recon_bit_->rbit_[e], e, CHA);
-                }
-            }
+                //     pseudo_replica(buffer->data_, *traj, *dcw, csm, recon_bit_->rbit_[e], e, CHA);
+                // }
+            
             
         }
         m1->release();
