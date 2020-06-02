@@ -117,10 +117,10 @@ namespace Gadgetron
             }
 
             hoNDFFT<float>::instance()->ifft(&bdata_permuted, (bdata_permuted.get_dimensions()->size()-1)); // make sure slice is the last dimension
-            #pragma omp parallel
+           // #pragma omp parallel
             //#pragma omp parallel private(iSL,trajectory,traj_dcw,dcw,traj,bdata_sliced,data,images,csm,combined,host_img,IsmrmrdImageArray,m3) shared(RO, E1, CHA, bdata_permuted,)
             
-            #pragma omp for
+            //#pragma omp for
             for (int iSL = 0; iSL < E2; iSL++)
             {
                 
