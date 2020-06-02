@@ -222,13 +222,13 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_wa
 
   arma::fmat33 rotation_matrix;
   rotation_matrix(0, 0) = head.read_dir[0];
-  rotation_matrix(0, 1) = head.read_dir[1];
-  rotation_matrix(0, 2) = head.read_dir[2];
-  rotation_matrix(1, 0) = head.phase_dir[0];
+  rotation_matrix(1, 0) = head.read_dir[1];
+  rotation_matrix(2, 0) = head.read_dir[2];
+  rotation_matrix(0, 1) = head.phase_dir[0];
   rotation_matrix(1, 1) = head.phase_dir[1];
-  rotation_matrix(1, 2) = head.phase_dir[2];
-  rotation_matrix(2, 0) = head.slice_dir[0];
-  rotation_matrix(2, 1) = head.slice_dir[1];
+  rotation_matrix(2, 1) = head.phase_dir[2];
+  rotation_matrix(0, 2) = head.slice_dir[0];
+  rotation_matrix(1, 2) = head.slice_dir[1];
   rotation_matrix(2, 2) = head.slice_dir[2];
 
   auto TE_ = header.sequenceParameters.get().TE.get().at(0);
