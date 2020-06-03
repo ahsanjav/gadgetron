@@ -117,7 +117,6 @@ void AcquisitionSpiralAccumulateWaveform ::process(
   auto buckets = std::map<unsigned short, AcquisitionBucket>{};
   //auto header_vector = std::vector<ISMRMRD::AcquisitionHeader>;
   // auto trigger   = get_trigger(*this);
-  int counterData;
   int waveForm_samples;
   int upsampleFactor;
   

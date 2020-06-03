@@ -51,6 +51,8 @@ namespace Gadgetron
         int girf_numpoint;
         float newscaling=0.5; 
         float newscaling1=0.5;
+          int counterData=0;
+
         std::map<size_t,hoNDArray<float>> trajectory_map;
         size_t curAvg=0;
     protected:
