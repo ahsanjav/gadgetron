@@ -182,7 +182,7 @@ namespace Gadgetron
                 GadgetContainerMessage<Gadgetron::IsmrmrdImageArray> *m3 = new GadgetContainerMessage<Gadgetron::IsmrmrdImageArray>();
                 *(m3->getObjectPtr()) = imarray;
 
-
+                
                 if (this->next()->putq(m3) < 0)
                 {
                     GDEBUG("Failed to put job on queue. Stupid Griding Recon\n");

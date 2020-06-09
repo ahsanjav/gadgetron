@@ -9,7 +9,7 @@ find_package(ZFP)
 include_directories(${HDF5_INCLUDE_DIR})
 
 set(gadgetron_mricore_header_files GadgetMRIHeaders.h
-        AcquisitionSpiralAccumulateWaveform.h
+        WaveformToTrajectory.h
         NoiseAdjustGadget.h
         PCACoilGadget.h
         RateLimitGadget.h
@@ -75,7 +75,7 @@ set(gadgetron_mricore_header_files GadgetMRIHeaders.h
         CoilComputationGadget.h)
 
 set(gadgetron_mricore_src_files
-        AcquisitionSpiralAccumulateWaveform.cpp
+        WaveformToTrajectory.cpp
         AcquisitionPassthroughGadget.cpp
         NoiseAdjustGadget.cpp
         PCACoilGadget.cpp
