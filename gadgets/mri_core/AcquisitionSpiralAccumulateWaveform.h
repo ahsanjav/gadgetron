@@ -62,7 +62,7 @@ namespace Gadgetron
 
         int curr_avg = 0;
         float kspace_scaling = 0;
-        hoNDArray<float> prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform_x, const Core::Waveform &grad_waveform_y,
+        hoNDArray<float> prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform,
                                                            const ISMRMRD::AcquisitionHeader &head);
         
         hoNDArray<floatd2> sincInterpolation(const hoNDArray<floatd2> input, int zpadFactor);

@@ -73,5 +73,5 @@
         },
         "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
         "C_Cpp.errorSquiggles": "Enabled",
-        "C_Cpp.intelliSenseEngine": "Tag Parser",
+       // "C_Cpp.intelliSenseEngine": "Tag Parser",
 }

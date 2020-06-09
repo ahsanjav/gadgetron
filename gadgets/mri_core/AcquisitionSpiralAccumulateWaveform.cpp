@@ -166,7 +166,7 @@ void AcquisitionSpiralAccumulateWaveform ::process(
 
       if(trajectory_map.find(head.idx.kspace_encode_step_1)==trajectory_map.end())
       {
-        trajectory_and_weights = prepare_trajectory_from_waveforms(grad_waveforms[counterData],grad_waveforms[counterData+1], head);
+        trajectory_and_weights = prepare_trajectory_from_waveforms(grad_waveforms[counterData], head);
         trajectory_map.insert(std::pair<size_t,hoNDArray<float>>(head.idx.kspace_encode_step_1,trajectory_and_weights));
       }
       else
@@ -202,7 +202,7 @@ void AcquisitionSpiralAccumulateWaveform ::process(
 
       Core::Acquisition acq = Core::Acquisition(std::move(head), std::move(data), std::move(trajectory_and_weights));
 
-      counterData+=2;
+      counterData++;
       
       AcquisitionBucket &bucket = buckets[sorting_index];
       add_acquisition(bucket, std::move(acq));
@@ -215,7 +215,7 @@ void AcquisitionSpiralAccumulateWaveform ::process(
 
   send_data(out, buckets, waveforms);
 }
-hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform_x, const Core::Waveform &grad_waveform_y, const ISMRMRD::AcquisitionHeader &head)
+hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_waveforms(const Core::Waveform &grad_waveform, const ISMRMRD::AcquisitionHeader &head)
 {
   using namespace Gadgetron::Indexing;
 
@@ -231,48 +231,31 @@ hoNDArray<float> AcquisitionSpiralAccumulateWaveform::prepare_trajectory_from_wa
   rotation_matrix(2, 2) = head.slice_dir[2];
 
   auto TE_ = header.sequenceParameters.get().TE.get().at(0);
-  auto &[wave_head_x, wave_data_x] = grad_waveform_x;
-  auto &[wave_head_y, wave_data_y] = grad_waveform_y;
-  
-  int upsampleFactor = head.number_of_samples / (wave_head_x.number_of_samples - 16);
-  
-  hoNDArray<float> gradient_x(wave_data_x.size() - 16);
-  hoNDArray<float> gradient_y(wave_data_y.size() - 16);
-  hoNDArray<floatd2> gradients(wave_data_y.size() - 16);
+  auto &[wave_head, wave_data] = grad_waveform;
 
-  size_t grad_end_index = wave_data_x.size() - 16;
-  size_t ghead_st_index = wave_data_x.size() - 16;
-  size_t size_gradOVS = gradient_x.size() * upsampleFactor;
+  hoNDArray<float> wave_data_float(wave_data.size() / 3, 3);
+  auto wave_data_floatx = reinterpret_cast<const float *>(wave_data.get_data_ptr());
 
-// Checking if the trajectories index and data indexes match 
-auto axisx = wave_data_x[11+ghead_st_index];
-auto axisy = wave_data_y[11+ghead_st_index];
-auto w1x=wave_data_x[ghead_st_index+12];
-auto w2x=wave_data_x[ghead_st_index+13];
-auto w1y=wave_data_y[ghead_st_index+12];
-auto w2y=wave_data_y[ghead_st_index+13];
+  int numberofGradSamples = wave_data_floatx[0];
+  //auto wave_data_float = hoNDArray<const float>(wave_data_floatx);
+  int sizeofCustomHeader = (wave_data.size() - 3 * numberofGradSamples) / 3;
 
-if(head.idx.kspace_encode_step_1 != wave_data_x[ghead_st_index+12] ||
-   head.idx.kspace_encode_step_2 != wave_data_x[ghead_st_index+13] ||
-   head.idx.kspace_encode_step_1 != wave_data_y[ghead_st_index+12] ||
-   head.idx.kspace_encode_step_2 != wave_data_y[ghead_st_index+13] )  
-    GERROR("Trajectory and data interleaves dont match: Be careful the images won't come out right becuase the trajectories are not correct \n");
+  std::copy(wave_data_floatx, wave_data_floatx + wave_data.size(), wave_data_float.begin());
 
-if(axisx==axisy)
-  GERROR("Waveforms are messeed up \n");
+  int upsampleFactor = head.number_of_samples / numberofGradSamples;
+
+  hoNDArray<floatd2> gradients(numberofGradSamples);
+
+  size_t size_gradOVS = numberofGradSamples * upsampleFactor;
 
   auto trajectory_and_weights = hoNDArray<float>(head.trajectory_dimensions, size_gradOVS);
 
-  auto wave_data_float_x = hoNDArray<float>(wave_data_x);
-  auto wave_data_float_y = hoNDArray<float>(wave_data_y);
-
-  for (int ii = 0; ii < grad_end_index; ii++)
+  for (int ii = 0; ii < numberofGradSamples; ii++)
   {
-    gradients(ii)[0] = (wave_data_float_x[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
-    gradients(ii)[1] = (wave_data_float_y[ii] / std::numeric_limits<uint32_t>::max()) * 80 - 40;
-
+    gradients(ii)[0] = wave_data_float(sizeofCustomHeader + ii, 0); // / std::numeric_limits<uint32_t>::max()) * 80 - 40;
+    gradients(ii)[1] = wave_data_float(sizeofCustomHeader + ii, 1); // / std::numeric_limits<uint32_t>::max()) * 80 - 40;
   }
-  
+
    auto gradients_interpolated = zeroHoldInterpolation(gradients, upsampleFactor);
     
    auto corrected_interpolated_gradients  = GIRF::girf_correct(gradients_interpolated, girf_kernel, rotation_matrix, 2e-6, 10e-6, 0.85e-6);
