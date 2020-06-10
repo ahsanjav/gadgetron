@@ -26,23 +26,14 @@
     <property><name>coils_out</name><value>12</value></property>
   </gadget>
 
-    <!-- Calculate spiral trajectory and attach 
-    <gadget>
-        <name>SpiralToGeneric</name>
-        <dll>gadgetron_spiral</dll>
-        <classname>SpiralToGenericGadget</classname>
-    </gadget> -->
     
-    <!-- Data accumulation and trigger gadget -->
+    <!-- Convert gradient waveforms into trajectories -->
     <gadget>
         <name>WaveformToTrajectory</name>
         <dll>gadgetron_mricore</dll>
-       <!-- <classname>AcquisitionAccumulateTriggerGadget</classname>
-        <property><name>trigger_dimension</name><value>repetition</value></property>
-        <property><name>sorting_dimension</name><value></value></property> -->
         <classname>WaveformToTrajectory</classname>
-        <property><name>sorting_dimension</name><value>none</value></property> 
-
+        <property><name>perform_GIRF</name><value>true</value></property>
+         <property><name>GIRF_folder</name><value>/opt/data/GIRF/</value></property>
     </gadget>
 
     <gadget>
