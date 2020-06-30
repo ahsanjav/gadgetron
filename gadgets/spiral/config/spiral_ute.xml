@@ -32,7 +32,7 @@
         <name>WaveformToTrajectory</name>
         <dll>gadgetron_mricore</dll>
         <classname>WaveformToTrajectory</classname>
-        <property><name>perform_GIRF</name><value>true</value></property>
+        <property><name>perform_GIRF</name><value>false</value></property>
          <property><name>GIRF_folder</name><value>/opt/data/GIRF/</value></property>
     </gadget>
 
