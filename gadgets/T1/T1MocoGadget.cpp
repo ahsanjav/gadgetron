@@ -23,18 +23,25 @@ namespace Gadgetron {
             , TIs{ *(context.header.sequenceParameters->TI) }
             , field_strength{ *context.header.acquisitionSystemInformation->systemFieldStrength_T } { }
 
+
         NODE_PROPERTY(correction_factor, float, "Empirical correction factor for T1", 1.0365f);
+        NODE_PROPERTY(regularization_sigma,float,"Gaussian regularizatin for registration",2.0f);
+        NODE_PROPERTY(demons_iterations,unsigned int ,"Number of iterations for the demons registration",40);
+        NODE_PROPERTY(step_size,float,"Maximum step size for demons registration (between 0.1 and 2.0)",2.0f);
+        NODE_PROPERTY(iterations, unsigned int, "Number of iterations of demons registration and T1 fit",5);
 
     private:
         void process(Core::InputChannel<IsmrmrdImageArray>& input, Core::OutputChannel& out) final override {
+
+            GDEBUG("Sigma %f demons_iterations %i Step size %f iterations %i\n",regularization_sigma,demons_iterations,step_size, iterations);
 
             for (auto images : input) {
 
                 auto TI_values = extract_MOLLI_TI(*images.acq_headers_);
 
                 auto data_dims = images.data_.dimensions();
-                images.data_.reshape({ data_dims[0], data_dims[1], -1 });
-                auto vector_field = T1::t1_registration(images.data_, TI_values);
+                images.data_.reshape( data_dims[0], data_dims[1], -1 );
+                auto vector_field = T1::t1_registration(images.data_, TI_values,iterations,{demons_iterations,regularization_sigma,step_size});
 
                 auto moco_images = T1::deform_groups(images.data_, vector_field);
 
@@ -54,20 +61,24 @@ namespace Gadgetron {
                 perform_hole_filling(T1);
                 auto header               = images.headers_[0];
                 header.data_type          = ISMRMRD::ISMRMRD_IMTYPE_MAGNITUDE;
-                header.image_series_index = 3;
+                header.image_series_index = 4;
                 auto meta                 = create_T1_meta(images.meta_.front());
 
                 // send original images
                 images.data_.reshape(data_dims);
+                set_RAW_headers_and_meta(images,TI_values);
                 out.push(images);
 
                 // send MOCO images
                 images.data_ = hoNDArray<std::complex<float>>(phase_corrected);
                 images.data_.reshape(data_dims);
 
-                std::vector<float> TI_sorted;
-                sort_images(images,TI_values,TI_sorted);
-                set_PSIR_headers_and_meta(images, TI_sorted);
+
+                auto mag_images = images;
+                set_MOCO_MAG_headers_and_meta(mag_images,TI_values);
+                out.push(std::move(mag_images));
+
+                set_PSIR_headers_and_meta(images, TI_values);
                 out.push(std::move(images));
 
                 // send out T1 map                
@@ -154,7 +165,7 @@ namespace Gadgetron {
             auto sorted_index = argsort(TI_values);
 
             auto dims = images.data_.dimensions();
-            images.data_.reshape({dims[0],dims[1],-1});
+            images.data_.reshape(dims[0],dims[1],-1);
             auto data_copy = images.data_;
             std::fill(images.data_.begin(),images.data_.end(),std::complex<float>(1));
 
@@ -169,23 +180,45 @@ namespace Gadgetron {
             for (size_t i=0; i<TI_values.size(); i++)
                 TI_sorted[i] = TI_values[ sorted_index[i] ];
         }
-
-
-        void  set_PSIR_headers_and_meta(IsmrmrdImageArray& images, const std::vector<float>& TI_sorted){
+        void  set_RAW_headers_and_meta(IsmrmrdImageArray& images, const std::vector<float>& TI_values){
             for (auto& header : images.headers_ ) {
-                header.image_type = ISMRMRD::ISMRMRD_IMTYPE_REAL;
+                header.image_type = ISMRMRD::ISMRMRD_IMTYPE_MAGNITUDE;
+                header.image_series_index = 1;
+            }
+
+            for (size_t ind = 0; ind < images.meta_.size(); ind++){
+                auto& meta = images.meta_[ind];
+                meta.set(GADGETRON_IMAGE_INVERSIONTIME, (double)(TI_values[ind]));
+            }
+        }
+
+        void  set_MOCO_MAG_headers_and_meta(IsmrmrdImageArray& images, const std::vector<float>& TI_values){
+            for (auto& header : images.headers_ ) {
+                header.image_type = ISMRMRD::ISMRMRD_IMTYPE_MAGNITUDE;
                 header.image_series_index = 2;
             }
 
-            float min_element = std::min_element(images.data_.begin(),images.data_.end(),[](auto val1,auto val2){return val1.real() < val2.real();})->real();
+            for (size_t ind = 0; ind < images.meta_.size(); ind++){
+                auto& meta = images.meta_[ind];
+                meta.set(GADGETRON_DATA_ROLE,GADGETRON_IMAGE_MOCO);
+                meta.set(GADGETRON_IMAGE_INVERSIONTIME, (double)(TI_values[ind]));
+            }
+        }
+
+        void  set_PSIR_headers_and_meta(IsmrmrdImageArray& images, const std::vector<float>& TI_values){
+            for (auto& header : images.headers_ ) {
+                header.image_type = ISMRMRD::ISMRMRD_IMTYPE_REAL;
+                header.image_series_index = 3;
+            }
+
 
             images.data_ += 4096.0;
-            size_t ind = 0;
-            for (auto& meta : images.meta_){
+            for (size_t ind = 0; ind < images.meta_.size(); ind++){
+                auto& meta = images.meta_[ind];
                 meta.set(GADGETRON_DATA_ROLE,GADGETRON_IMAGE_PSIR);
                 meta.append(GADGETRON_DATA_ROLE,GADGETRON_IMAGE_MOCO);
                 meta.set(GADGETRON_IMAGE_SCALE_OFFSET, (double)(4096.0));
-                meta.set(GADGETRON_IMAGE_INVERSIONTIME, (double)(TI_sorted[ind++]));
+                meta.set(GADGETRON_IMAGE_INVERSIONTIME, (double)(TI_values[ind]));
             }
         }
 

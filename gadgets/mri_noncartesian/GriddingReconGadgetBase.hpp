@@ -1,3 +1,4 @@
+#pragma once
 #include "GriddingReconGadgetBase.h"
 #include "mri_core_grappa.h"
 
@@ -11,7 +12,6 @@
 #include <random>
 #include "NonCartesianTools.h"
 #include "NFFTOperator.h"
-#include "hoNDFFT.h"
 #include <sstream>
 #include <fstream>
 #include <iostream>

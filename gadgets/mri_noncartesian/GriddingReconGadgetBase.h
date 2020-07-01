@@ -52,3 +52,4 @@ namespace Gadgetron {
     };
 }
 
+#include "GriddingReconGadgetBase.hpp"

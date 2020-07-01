@@ -14,6 +14,9 @@ add_library(gadgetron_core SHARED
         Message.cpp
         Response.cpp
         io/from_string.cpp)
+set_target_properties(gadgetron_core PROPERTIES
+        VERSION ${GADGETRON_VERSION_STRING}
+        SOVERSION ${GADGETRON_SOVERSION})
 
 target_link_libraries(gadgetron_core
         ISMRMRD::ISMRMRD
@@ -22,7 +25,7 @@ target_link_libraries(gadgetron_core
 
 target_include_directories(gadgetron_core PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<INSTALL_INTERFACE:include/gadgetron>
+        $<INSTALL_INTERFACE:include>
         )
 
 install(TARGETS gadgetron_core
@@ -50,6 +53,7 @@ install(FILES
         TypeTraits.h
         Writer.h
         Node.h
+        PureGadget.h
         LegacyACE.h
         PropertyMixin.h
         GadgetContainerMessage.h
