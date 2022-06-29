@@ -4,25 +4,24 @@
 #pragma once
 // Gadgetron includes
 
-#include <gadgetron/hoNDArray_utils.h>
+//#include <gadgetron/hoNDArray_utils.h>
 
-#include <gadgetron/cuNFFT.h>
-#include <gadgetron/cuNDFFT.h>
-#include <gadgetron/cuNDArray_math.h>
-#include <gadgetron/cuNDArray.h>
-#include <gadgetron/cuNDArray_math.h>
-#include <gadgetron/cuNDArray_operators.h>
-#include <gadgetron/NFFTOperator.h>
+#include "cuNFFT.h"
+#include "cuNDFFT.h"
+#include "cuNDArray_math.h"
+#include "cuNDArray.h"
+#include "cuNDArray_math.h"
+#include "cuNDArray_operators.h"
+#include "NFFTOperator.h"
 
 // Std includes
 #include <iostream>
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
-#include <gadgetron/GadgetronTimer.h>
+#include "GadgetronTimer.h"
 #include <boost/program_options.hpp>
 #include <boost/asio.hpp>
-#include <gadgetron/mri_core_coil_map_estimation.h>
-#include <gadgetron/hoArmadillo.h>
+#include "hoArmadillo.h"
 #include <complex>
 
 using namespace Gadgetron;

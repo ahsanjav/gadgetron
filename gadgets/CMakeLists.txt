@@ -41,7 +41,7 @@ else()
 endif()
 
 add_subdirectory(cartesian)
-add_subdirectory(moco)
+#add_subdirectory(moco)
 
 if(PLPLOT_FOUND)
     if (MKL_FOUND OR ARMADILLO_FOUND)
