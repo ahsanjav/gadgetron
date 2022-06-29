@@ -4,7 +4,6 @@
 #pragma once
 // Gadgetron includes
 
-#include <gadgetron/cuSDC.h>
 #include <gadgetron/hoNDArray_utils.h>
 
 #include <gadgetron/cuNFFT.h>
@@ -13,7 +12,6 @@
 #include <gadgetron/cuNDArray.h>
 #include <gadgetron/cuNDArray_math.h>
 #include <gadgetron/cuNDArray_operators.h>
-#include <gadgetron/parameterparser.h>
 #include <gadgetron/NFFTOperator.h>
 
 // Std includes
