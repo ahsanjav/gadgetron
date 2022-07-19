@@ -1,6 +1,6 @@
 #pragma once
 #include "NFFT.h"
-
+#include "GadgetronTimer.h"
 namespace Gadgetron
 {
 
@@ -225,9 +225,14 @@ namespace Gadgetron
 
     template<template<class> class ARRAY, class REAL, unsigned int D>
     void NFFT_plan<ARRAY, REAL, D>::compute_NFFTH_NC2C(const ARRAY<complext<REAL>>& samples, ARRAY<complext<REAL>>& image) {
-
-        convolve(samples, image,  NFFT_conv_mode::NC2C);
-        fft(image, NFFT_fft_mode::BACKWARDS);
+        {
+            GadgetronTimer timer("NFFTH Convolve");
+            convolve(samples, image,  NFFT_conv_mode::NC2C);
+        }
+        {
+            GadgetronTimer timer("NFFTH Convolve");
+            fft(image, NFFT_fft_mode::BACKWARDS);
+        }
         deapodize(image);
     }
 
