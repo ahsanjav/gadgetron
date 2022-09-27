@@ -27,7 +27,7 @@ dependencies:
   - fftw=3.3.9
   - gadgetron::gadgetron-python=1.4.1
   - gcc_linux-64=9.4.0                    # dev
-  - gdb=11.1                              # dev
+  - gdb=11.2                              # dev
   - gmock=1.10.0                          # dev
   - gxx_linux-64=9.4.0                    # dev
   - gtest=1.10.0                          # dev
