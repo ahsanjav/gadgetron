@@ -652,21 +652,25 @@ namespace {
   template  cuNDArray<float > crop<float,2>(const vector_td<size_t,2>&, const vector_td<size_t,2>&, const cuNDArray<float>&);
   template  cuNDArray<float > crop<float,3>(const vector_td<size_t,3>&, const vector_td<size_t,3>&, const cuNDArray<float>&);
   template  cuNDArray<float > crop<float,4>(const vector_td<size_t,4>&, const vector_td<size_t,4>&, const cuNDArray<float>&);
+//  template  cuNDArray<float > crop<float,5>(const vector_td<size_t,5>&, const vector_td<size_t,5>&, const cuNDArray<float>&);
 
   template  cuNDArray<float_complext > crop<float_complext,1>( const typename uint64d<1>::Type&, const typename uint64d<1>::Type&, const cuNDArray<float_complext>&);
   template  cuNDArray<float_complext > crop<float_complext,2>( const typename uint64d<2>::Type&, const typename uint64d<2>::Type&, const cuNDArray<float_complext>&);
   template  cuNDArray<float_complext > crop<float_complext,3>( const typename uint64d<3>::Type&, const typename uint64d<3>::Type&, const cuNDArray<float_complext>&);
   template  cuNDArray<float_complext > crop<float_complext,4>( const typename uint64d<4>::Type&, const typename uint64d<4>::Type&, const cuNDArray<float_complext>&);
+  //template  cuNDArray<float_complext > crop<float_complext,5>( const typename uint64d<5>::Type&, const typename uint64d<5>::Type&, const cuNDArray<float_complext>&);
 
   template void crop<float,1>( const vector_td<size_t,1>&, const vector_td<size_t,1>&, const cuNDArray<float>&, cuNDArray<float>&);
   template void crop<float,2>( const vector_td<size_t,2>&, const vector_td<size_t,2>&, const cuNDArray<float>&, cuNDArray<float>&);
   template void crop<float,3>( const vector_td<size_t,3>&, const vector_td<size_t,3>&, const cuNDArray<float>&, cuNDArray<float>&);
   template void crop<float,4>( const vector_td<size_t,4>&, const vector_td<size_t,4>&, const cuNDArray<float>&, cuNDArray<float>&);
-
+  //template void crop<float,5>( const vector_td<size_t,5>&, const vector_td<size_t,5>&, const cuNDArray<float>&, cuNDArray<float>&);
+  
   template void crop<complext<float>,1>( const uint64d1&, const uint64d1&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
   template void crop<complext<float>,2>( const uint64d2&, const uint64d2&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
   template void crop<complext<float>,3>( const uint64d3&, const uint64d3&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
   template void crop<complext<float>,4>( const uint64d4&, const uint64d4&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
+  template void crop<complext<float>,5>( const uint64d5&, const uint64d5&, const cuNDArray<complext<float> >&, cuNDArray<complext<float> >&);
 
   template  cuNDArray<float > pad<float,1>( const uint64d1&, const cuNDArray<float>&, float );
   template  cuNDArray<float > pad<float,2>( const uint64d2&, const cuNDArray<float>&, float );
