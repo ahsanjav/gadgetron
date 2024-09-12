@@ -6,7 +6,7 @@ channels:
   - conda-forge
   - bioconda
   - defaults
-  - intel
+#  - intel
 dependencies:
   - anaconda-client=1.11                # dev
   - armadillo=9.900.5                   # dev
@@ -48,7 +48,7 @@ dependencies:
   - libxml2=2.9                         # dev
   - make=4.3                            # dev
   - matplotlib=3.4.3                    # dev
-  - memkind=1.10.1
+ # - memkind=1.10.1
   - mkl>=2022.0.0
   - mkl-include>=2022.0.0               # dev
   - ismrmrd::mrd-storage-server=0.0.12
