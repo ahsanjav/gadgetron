@@ -60,6 +60,19 @@ protected:
   cuNDArray<T> Array2;
 };
 
+template <typename T> class cuNDArray_elemwise_TestCplx6 : public ::testing::Test {
+protected:
+  virtual void SetUp() {
+    size_t vdims[] = {37, 49, 23, 19}; //Using prime numbers for setup because they are messy
+    dims = std::vector<size_t>(vdims,vdims+sizeof(vdims)/sizeof(size_t));
+    Array = cuNDArray<T>(&dims);
+    Array2 = cuNDArray<T>(&dims);
+  }
+  std::vector<size_t> dims;
+  cuNDArray<T> Array;
+  cuNDArray<T> Array2;
+};
+
 template <typename T> class cuNDArray_elemwise_TestCplx4 : public ::testing::Test {
 protected:
   virtual void SetUp() {
@@ -375,4 +388,12 @@ TYPED_TEST(cuNDArray_elemwise_TestCplx3,realToCplxTest){
   fill(&this->Array,TypeParam(3.4,4.2));
   EXPECT_FLOAT_EQ(3.4,real(real_to_complex<TypeParam>(real(&this->Array).get())->at(33425)));
   EXPECT_FLOAT_EQ(0.0,imag(real_to_complex<TypeParam>(real(&this->Array).get())->at(33425)));
+}
+
+TYPED_TEST_SUITE(cuNDArray_elemwise_TestCplx6, cplxImplementations);
+
+TYPED_TEST(cuNDArray_elemwise_TestCplx6,imagToCplxTest){
+  fill(&this->Array,TypeParam(3.4,4.2));
+  EXPECT_FLOAT_EQ(4.2,imag(imag_to_complex<TypeParam>(imag(&this->Array).get())->at(33425)));
+  EXPECT_FLOAT_EQ(0.0,real(imag_to_complex<TypeParam>(imag(&this->Array).get())->at(33425)));
 }
