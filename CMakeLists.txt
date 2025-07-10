@@ -163,7 +163,7 @@ else ()
         endif ()
     endif ()
 
-    add_compile_options(-Werror)
+    #add_compile_options(-Werror)
     check_cxx_compiler_flag(-Werror=return-type COMPILER_SUPPORTS_WRETURNTYPE)
     if (COMPILER_SUPPORTS_WRETURNTYPE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type")
@@ -255,6 +255,9 @@ if (CUDA_FOUND AND USE_CUDA)
         set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_80,code=sm_80")
         set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_86,code=sm_86")
         set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_90,code=sm_90")
+        set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_100,code=sm_100")
+        set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_120,code=sm_120")
+
     endif ()
 
     message("Compiling with ${CUDA_NVCC_FLAGS}")

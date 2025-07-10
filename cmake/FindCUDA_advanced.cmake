@@ -14,6 +14,9 @@ if(CUDA_FOUND)
   set(CUDA_NVCC_FLAGS8 "-gencode arch=compute_80,code=sm_80")
   set(CUDA_NVCC_FLAGS86 "-gencode arch=compute_86,code=sm_86")
   set(CUDA_NVCC_FLAGS90 "-gencode arch=compute_90,code=sm_90")
+  set(CUDA_NVCC_FLAGS100 "-gencode arch=compute_100,code=sm_100")
+  set(CUDA_NVCC_FLAGS110 "-gencode arch=compute_110,code=sm_110")
+  set(CUDA_NVCC_FLAGS120 "-gencode arch=compute_120,code=sm_120")
 
   cuda_find_helper_file(cuda_compute_capability c)
   try_run(RUN_RESULT_VAR COMPILE_RESULT_VAR

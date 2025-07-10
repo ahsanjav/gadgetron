@@ -27,6 +27,7 @@ ARG MAMBAFORGE_VERSION=22.9.0-2
 ARG CONDA_GID=900
 
 # Based on https://github.com/conda-forge/miniforge-images/blob/master/ubuntu/Dockerfile
+
 RUN wget --no-hsts --quiet https://github.com/conda-forge/miniforge/releases/download/${MAMBAFORGE_VERSION}/Mambaforge-${MAMBAFORGE_VERSION}-Linux-$(uname -m).sh -O /tmp/miniforge.sh \
     && /bin/bash /tmp/miniforge.sh -b -p /opt/conda \
     && rm /tmp/miniforge.sh \
@@ -40,6 +41,19 @@ RUN wget --no-hsts --quiet https://github.com/conda-forge/miniforge/releases/dow
     && chmod -R g+w /opt/conda \
     && find /opt -type d | xargs -n 1 chmod g+s
 
+#RUN wget --no-hsts --quiet https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh -O /tmp/miniforge.sh \
+#    && /bin/bash /tmp/miniforge.sh -b -p /opt/conda \
+#    && rm /tmp/miniforge.sh \
+#    && /opt/conda/bin/mamba clean --tarballs --index-cache --packages --yes \
+#    && find /opt/conda -follow -type f -name '*.a' -delete \
+#    && find /opt/conda -follow -type f -name '*.pyc' -delete \
+#    && /opt/conda/bin/mamba clean --force-pkgs-dirs --all --yes  \
+#    && groupadd -r conda --gid ${CONDA_GID} \
+#    && usermod -aG conda ${USERNAME} \
+#    && chown -R :conda /opt/conda \
+#    && chmod -R g+w /opt/conda \
+#    && find /opt -type d | xargs -n 1 chmod g+s
+    
 # Copy environment, which will be filtered for later staged
 COPY --chown=$USER_UID:conda environment.yml /tmp/build/
 
